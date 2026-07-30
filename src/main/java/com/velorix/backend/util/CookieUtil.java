@@ -14,13 +14,16 @@ public class CookieUtil {
     @Value("${jwt.refreshExpiration:604800000}")
     private long refreshExpiration;
 
+    @Value("${app.is-production:true}")
+    private boolean isProduction;
+
     public HttpCookie createAccessTokenCookie(String token) {
         return ResponseCookie.from("access_token", token)
                 .maxAge(jwtExpiration / 1000)
                 .httpOnly(true)
-                .secure(false) // Set to true in production with HTTPS
+                .secure(isProduction)
                 .path("/")
-                .sameSite("Lax")
+                .sameSite(isProduction ? "None" : "Lax")
                 .build();
     }
 
@@ -28,9 +31,9 @@ public class CookieUtil {
         return ResponseCookie.from("refresh_token", token)
                 .maxAge(refreshExpiration / 1000)
                 .httpOnly(true)
-                .secure(false) // Set to true in production with HTTPS
-                .path("/api/auth/refresh")
-                .sameSite("Strict")
+                .secure(isProduction)
+                .path("/")
+                .sameSite(isProduction ? "None" : "Lax")
                 .build();
     }
 
@@ -38,8 +41,9 @@ public class CookieUtil {
         return ResponseCookie.from(name, "")
                 .maxAge(0)
                 .httpOnly(true)
-                .secure(false)
+                .secure(isProduction)
                 .path(path)
+                .sameSite(isProduction ? "None" : "Lax")
                 .build();
     }
 }
