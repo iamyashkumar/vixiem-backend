@@ -1,5 +1,7 @@
 package com.velorix.backend.security;
 
+import com.velorix.backend.service.CustomUserDetailsService;
+import org.springframework.security.core.userdetails.UserDetails;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -8,67 +10,83 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import jakarta.servlet.http.Cookie;
 
-@Slf4j
 @Component
+@Slf4j
 public class JwtFilter extends OncePerRequestFilter {
 
     @Autowired
     private JwtUtil jwtUtil;
 
     @Autowired
-    private UserDetailsService userDetailsService;
+    private CustomUserDetailsService userDetailsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
-                                    FilterChain chain) throws ServletException, IOException {
+                                    FilterChain filterChain) throws ServletException, IOException {
 
-        log.debug("JwtFilter processing: {}", request.getRequestURI());
+        try {
+            String token = extractToken(request);
 
-        final String authHeader = request.getHeader("Authorization");
+            if (token != null) {
+                String email = jwtUtil.validateAndExtract(token);
 
-        String userId = null;
-        String jwt = null;
+                if (email != null && SecurityContextHolder.getContext().getAuthentication() == null && !jwtUtil.isTokenExpired(token)) {
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+                    
+                    boolean tokenValid = true;
+                    if (userDetails instanceof CustomUserDetails) {
+                        CustomUserDetails customUser = (CustomUserDetails) userDetails;
+                        if (customUser.getUser().getLastPasswordResetDate() != null) {
+                            java.util.Date issuedAt = jwtUtil.getIssuedAt(token);
+                            if (issuedAt != null && issuedAt.before(customUser.getUser().getLastPasswordResetDate())) {
+                                tokenValid = false;
+                                log.warn("Token revoked due to password change for user: {}", email);
+                            }
+                        }
+                    }
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            jwt = authHeader.substring(7);
-            try {
-                userId = jwtUtil.getUserIdFromToken(jwt);
-                log.debug("Extracted userId: {}", userId);
-            } catch (Exception e) {
-                log.debug("Failed to extract userId: {}", e.getMessage());
-            }
-        } else {
-            log.debug("No Bearer token found");
-        }
-
-        if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            try {
-                UserDetails userDetails = userDetailsService.loadUserByUsername(userId);
-                if (jwtUtil.validateToken(jwt)) {
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
-                    log.debug("Authentication set for user: {}", userId);
-                } else {
-                    log.debug("Token validation failed");
+                    if (tokenValid) {
+                        UsernamePasswordAuthenticationToken auth =
+                                new UsernamePasswordAuthenticationToken(
+                                        userDetails, null, userDetails.getAuthorities()
+                                );
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+                        log.debug("User authenticated: {}", email);
+                    }
                 }
-            } catch (Exception e) {
-                log.debug("loadUserByUsername or validateToken error: {}", e.getMessage());
             }
-        } else {
-            log.debug("userId is null or authentication already exists");
+        } catch (Exception e) {
+            log.warn("JWT validation failed (ignoring for public endpoints): {}", e.getMessage());
+            SecurityContextHolder.clearContext();
+            // Do NOT return 401 here. Let the filter chain continue.
+            // If the endpoint is public, it will succeed. 
+            // If it is protected, Spring Security will throw 401 automatically.
         }
 
-        chain.doFilter(request, response);
+        filterChain.doFilter(request, response);
+    }
+
+    // ✅ Extract token from Cookies or Authorization header
+    private String extractToken(HttpServletRequest request) {
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("access_token".equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
     }
 }

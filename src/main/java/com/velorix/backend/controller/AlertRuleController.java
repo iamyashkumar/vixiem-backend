@@ -7,6 +7,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,15 +25,17 @@ public class AlertRuleController {
     @Autowired
     private JwtUtil jwtUtil;
 
-    private String getUserIdFromRequest(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        String token = authHeader.substring(7);
-        return jwtUtil.getUserIdFromToken(token);
+    private String getUserIdFromRequest() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new RuntimeException("User not authenticated");
+        }
+        return auth.getName();
     }
 
     @PostMapping
-    public ResponseEntity<?> createRule(@RequestBody AlertRule rule, HttpServletRequest request) {
-        String userId = getUserIdFromRequest(request);
+    public ResponseEntity<?> createRule(@RequestBody AlertRule rule) {
+        String userId = getUserIdFromRequest();
         rule.setUserId(userId);
         rule.setCreatedAt(LocalDateTime.now());
         rule.setEnabled(true);
@@ -40,8 +44,8 @@ public class AlertRuleController {
     }
 
     @GetMapping
-    public ResponseEntity<List<AlertRule>> getUserRules(HttpServletRequest request) {
-        String userId = getUserIdFromRequest(request);
+    public ResponseEntity<List<AlertRule>> getUserRules() {
+        String userId = getUserIdFromRequest();
         return ResponseEntity.ok(alertRuleRepository.findByUserId(userId));
     }
 }

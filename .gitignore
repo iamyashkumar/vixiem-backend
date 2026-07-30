@@ -28,17 +28,7 @@ build/
 ### VS Code ###
 .vscode/
 
-# Application secrets (never commit real credentials)
-application-local.properties
-*.env
-**/application-secret.properties
-*.env
-application-local.properties
-application-secret.properties
-
-# Environment & Config (NEVER COMMIT)
-application.properties
-application-*.properties
+# Environment & Config (NEVER COMMIT REAL SECRETS)
 .env
 .env.local
 .env.*.local
@@ -49,12 +39,14 @@ application-*.properties
 *.p12
 *.keystore
 
-# IDE
+# Temporary Scratch Files
+cookies.txt
+*.class
+TestRegex.java
+
+# IDE & Build
 .idea/
 .vscode/
 *.iml
-
-# Build
 target/
 dist/
-

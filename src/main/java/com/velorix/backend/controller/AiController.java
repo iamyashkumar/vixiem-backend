@@ -1,113 +1,163 @@
 package com.velorix.backend.controller;
 
-import com.velorix.backend.model.AiSuggestion;
+import com.velorix.backend.dto.ApiResponse;
 import com.velorix.backend.model.User;
-import com.velorix.backend.repository.AiSuggestionRepository;
 import com.velorix.backend.repository.UserRepository;
 import com.velorix.backend.security.JwtUtil;
-import com.velorix.backend.service.AiDebugService;
-import lombok.extern.slf4j.Slf4j;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
-@Slf4j
+import com.velorix.backend.service.AiQuotaService;
+import com.velorix.backend.service.AiDebugService;
+
 @RestController
 @RequestMapping("/api/ai")
+@Slf4j
 public class AiController {
-
-    @Autowired
-    private AiDebugService aiDebugService;
-
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private AiSuggestionRepository aiSuggestionRepository;
 
     @Autowired
     private JwtUtil jwtUtil;
 
     @Autowired
-    private MongoTemplate mongoTemplate;
+    private UserRepository userRepository;
 
-    private String getUserIdFromRequest(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Missing or invalid Authorization header");
+    @Autowired
+    private AiQuotaService aiQuotaService;
+
+    @Autowired
+    private AiDebugService aiDebugService;
+
+    private String getUserIdFromRequest() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return null;
         }
-        String token = authHeader.substring(7);
-        return jwtUtil.getUserIdFromToken(token);
+        return auth.getName();
     }
 
-    @PostMapping("/analyze")
-    public ResponseEntity<?> analyzeErrors(@RequestBody(required = false) Map<String, String> payload,
-                                           HttpServletRequest request) {
+    // ✅ Get AI Call Limit Status
+    @GetMapping("/limit-status")
+    public ResponseEntity<Map<String, Object>> getLimitStatus() {
         try {
-            String userId = getUserIdFromRequest(request);
-            String endpointId = (payload != null) ? payload.get("endpointId") : null;
+            String userId = getUserIdFromRequest();
 
-            // Rate limiting: max 10 calls per day per user
-            User user = userRepository.findById(userId).orElseThrow();
-            LocalDateTime todayMidnight = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+            if (userId == null) {
+                return ResponseEntity.status(401).build();
+            }
 
-            // Reset counter if new day
-            if (user.getLastAiCallReset() == null || user.getLastAiCallReset().isBefore(todayMidnight)) {
+            Optional<User> userOpt = userRepository.findByEmail(userId);
+
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(404).build();
+            }
+
+            User user = userOpt.get();
+
+            // Check if daily limit needs reset
+            if (user.getLastAiCallReset() == null ||
+                    user.getLastAiCallReset().isBefore(LocalDateTime.now().minusHours(24))) {
                 user.setDailyAiCalls(0);
                 user.setLastAiCallReset(LocalDateTime.now());
                 userRepository.save(user);
             }
 
-            // Check limit BEFORE atomic increment
-            if (user.getDailyAiCalls() >= 10) {
-                log.warn("User {} reached daily AI call limit", userId);
-                return ResponseEntity.status(429).body(Map.of("error", "Daily AI limit reached (10 calls). Try tomorrow."));
-            }
+            Map<String, Object> response = new HashMap<>();
+            int maxCalls = user.getMaxDailyAiCalls() > 0 ? user.getMaxDailyAiCalls() : 50;
+            response.put("dailyCallsUsed", user.getDailyAiCalls());
+            response.put("used", user.getDailyAiCalls()); // UI expects 'used'
+            response.put("limit", maxCalls); // UI expects 'limit'
+            response.put("dailyCallsLimit", maxCalls);
+            response.put("remainingCalls", maxCalls - user.getDailyAiCalls());
+            response.put("subscriptionPlan", user.getSubscriptionPlan());
+            response.put("totalCallsUsed", user.getTotalAiCallsUsed());
 
-            // Call AI service
-            AiSuggestion suggestion = aiDebugService.analyzeErrors(userId, endpointId);
-
-            // Atomic increment - race condition safe
-            incrementAiCallCount(userId);
-
-            log.info("User {} AI call successful, total calls today: {}", userId, user.getDailyAiCalls() + 1);
-            return ResponseEntity.ok(suggestion);
-
-        } catch (RuntimeException e) {
-            if (e.getMessage() != null && e.getMessage().contains("No ERROR logs found")) {
-                return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
-            }
-            log.error("AI analyze error: {}", e.getMessage());
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Internal server error in AI analyze: {}", e.getMessage());
-            return ResponseEntity.status(500).body(Map.of("error", "Internal server error: " + e.getMessage()));
+            log.error("Error getting limit status: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
         }
     }
 
-    /**
-     * Atomic increment using MongoDB findAndModify
-     * This prevents race conditions when multiple requests hit the limit check simultaneously
-     */
-    private void incrementAiCallCount(String userId) {
-        Query query = new Query(Criteria.where("_id").is(userId));
-        Update update = new Update().inc("dailyAiCalls", 1);
-        mongoTemplate.findAndModify(query, update, User.class);
+    // ✅ Analyze Errors with AI
+    @PostMapping("/analyze")
+    public ResponseEntity<Map<String, Object>> analyzeErrors(
+            @RequestBody Map<String, Object> payload) {
+
+        String userId = getUserIdFromRequest();
+
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        // Enforce quota atomically
+        boolean quotaReserved = aiQuotaService.reserveQuota(userId);
+        if (!quotaReserved) {
+            log.warn("User {} reached daily AI call limit", userId);
+            return ResponseEntity.status(429).body(Map.of(
+                    "error", "Daily AI call limit reached. Try tomorrow or upgrade your plan.",
+                    "code", "QUOTA_EXCEEDED"
+            ));
+        }
+
+        String endpointId = (String) payload.getOrDefault("endpointId", "unknown");
+        List<String> errors = (List<String>) payload.get("errors");
+
+        Map<String, Object> analysis = aiDebugService.analyzeErrors(userId, endpointId, errors);
+
+        // Fetch user to get remaining calls (or could just return without it, but let's include it)
+        Optional<User> userOpt = userRepository.findByEmail(userId);
+        int remaining = userOpt.map(u -> (u.getMaxDailyAiCalls() > 0 ? u.getMaxDailyAiCalls() : 50) - u.getDailyAiCalls()).orElse(0);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("analysis", analysis);
+        response.put("callsRemaining", remaining);
+        response.put("success", true);
+
+        return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/history")
-    public ResponseEntity<List<AiSuggestion>> getHistory(HttpServletRequest request) {
-        String userId = getUserIdFromRequest(request);
-        List<AiSuggestion> history = aiSuggestionRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        return ResponseEntity.ok(history);
+    // ✅ Get AI Usage Stats
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Object>> getStats() {
+        try {
+            String userId = getUserIdFromRequest();
+
+            if (userId == null) {
+                return ResponseEntity.status(401).build();
+            }
+
+            Optional<User> userOpt = userRepository.findByEmail(userId);
+
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(404).build();
+            }
+
+            User user = userOpt.get();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("totalAiCalls", user.getTotalAiCallsUsed());
+            response.put("todayAiCalls", user.getDailyAiCalls());
+            response.put("subscriptionPlan", user.getSubscriptionPlan());
+            response.put("accountCreated", user.getCreatedAt());
+            response.put("lastAiCallReset", user.getLastAiCallReset());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting stats: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }

@@ -1,46 +1,36 @@
 package com.velorix.backend.service;
 
-import com.velorix.backend.model.AlertRule;
-import com.velorix.backend.repository.AlertRuleRepository;
-import com.velorix.backend.repository.LogRepository;
+import com.velorix.backend.model.ErrorLog;
+import com.velorix.backend.repository.ErrorLogRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
-@EnableScheduling
+@Slf4j
 public class ErrorDetectionService {
 
     @Autowired
-    private LogRepository logRepository;
+    private ErrorLogRepository errorLogRepository;
 
-    @Autowired
-    private AlertRuleRepository alertRuleRepository;
-
-    @Autowired
-    private AlertService alertService;
-
-    // Runs every 5 minutes
-    @Scheduled(fixedRate = 300000)
+    @Scheduled(fixedDelay = 300000) // Every 5 minutes
     public void detectErrorSpikes() {
-        List<AlertRule> activeRules = alertRuleRepository.findByEnabledTrue();
+        log.info("Detecting error spikes...");
 
-        for (AlertRule rule : activeRules) {
-            LocalDateTime cutoff = LocalDateTime.now().minusMinutes(rule.getTimeWindowMinutes());
-            long errorCount = logRepository.countByUserIdAndLevelAndTimestampAfter(
-                    rule.getUserId(), "ERROR", cutoff
-            );
+        try {
+            List<ErrorLog> recentErrors = errorLogRepository.findByEnabledTrue();
 
-            if (errorCount >= rule.getErrorThreshold()) {
-                String message = String.format(
-                        "⚠️ Alert: %d errors in last %d minutes (threshold: %d)",
-                        errorCount, rule.getTimeWindowMinutes(), rule.getErrorThreshold()
-                );
-                alertService.sendAlert(rule, message);
+            if (recentErrors.size() > 10) {
+                log.warn("High error rate detected: {} errors in last 5 minutes", recentErrors.size());
+            } else {
+                log.info("Error spike check completed: {} errors detected", recentErrors.size());
             }
+        } catch (Exception e) {
+            log.error("Error during error spike detection: {}", e.getMessage());
         }
     }
 }

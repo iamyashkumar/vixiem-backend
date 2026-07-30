@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Data
 @Builder
@@ -23,9 +24,17 @@ public class ApiEndpoint {
 
     private String url;
 
+    private java.util.List<String> tags;
+
     private int checkIntervalSeconds;
 
+    @JsonProperty("isActive")
     private boolean isActive;
+
+    private boolean alertsEnabled;
+    private Boolean lastStatus; // true = UP, false = DOWN, null = UNKNOWN
+    private LocalDateTime statusChangedAt;
+    private LocalDateTime lastAlertSentAt;
 
     private LocalDateTime createdAt;
 }

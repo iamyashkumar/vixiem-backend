@@ -18,14 +18,18 @@ public class CustomUserDetailsService implements UserDetailsService {
     private UserRepository userRepository;
 
     @Override
-    public UserDetails loadUserByUsername(String userId) throws UsernameNotFoundException {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userId));
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
-        return new org.springframework.security.core.userdetails.User(
-                user.getId(),
-                user.getPassword(),
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+        String rawRole = user.getRole() != null ? user.getRole() : "USER";
+        String normalizedRole = rawRole.toUpperCase().startsWith("ROLE_") 
+                ? rawRole.toUpperCase() 
+                : "ROLE_" + rawRole.toUpperCase();
+
+        return new com.velorix.backend.security.CustomUserDetails(
+                user,
+                Collections.singletonList(new SimpleGrantedAuthority(normalizedRole))
         );
     }
 }

@@ -12,37 +12,41 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.velorix.backend.repository.UserRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-@RestController
-@RequestMapping("/api/logs")
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
+@RestController
+@RequestMapping({"/logs", "/api/logs"})
 public class LogController {
 
     @Autowired
     private LogRepository logRepository;
 
     @Autowired
-    private JwtUtil jwtUtil;
+    private UserRepository userRepository;
 
     @Autowired
     private MongoTemplate mongoTemplate;
 
-    private String getUserIdFromRequest(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Missing or invalid Authorization header");
+    private String getUserIdFromRequest() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new RuntimeException("User not authenticated");
         }
-        String token = authHeader.substring(7);
-        return jwtUtil.getUserIdFromToken(token);
+        return auth.getName();
     }
 
     @PostMapping
-    public ResponseEntity<?> ingestLog(@RequestBody LogEntry logEntry, HttpServletRequest request) {
-        String userId = getUserIdFromRequest(request);
+    public ResponseEntity<?> ingestLog(@RequestBody LogEntry logEntry) {
+        String userId = getUserIdFromRequest();
         logEntry.setUserId(userId);
         logEntry.setTimestamp(LocalDateTime.now());
         logRepository.save(logEntry);
@@ -54,10 +58,9 @@ public class LogController {
             @RequestParam(required = false) String level,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            HttpServletRequest request) {
+            @RequestParam(defaultValue = "20") int size) {
 
-        String userId = getUserIdFromRequest(request);
+        String userId = getUserIdFromRequest();
 
         // Build query criteria
         Criteria criteria = Criteria.where("userId").is(userId);
@@ -70,6 +73,10 @@ public class LogController {
 
         Query query = new Query(criteria);
         long total = mongoTemplate.count(query, LogEntry.class);
+        
+        log.info("DEBUG: User ID: {}, Level: {}, Keyword: {}", userId, level, keyword);
+        log.info("DEBUG: Total logs found in DB for this user: {}", total);
+
         query.with(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp")));
         List<LogEntry> logs = mongoTemplate.find(query, LogEntry.class);
 
@@ -81,5 +88,14 @@ public class LogController {
                 "page", page,
                 "size", size
         ));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getLogById(@PathVariable String id) {
+        String userId = getUserIdFromRequest();
+        
+        return logRepository.findByIdAndUserId(id, userId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 }

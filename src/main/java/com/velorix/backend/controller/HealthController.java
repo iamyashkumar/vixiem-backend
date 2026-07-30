@@ -1,70 +1,96 @@
 package com.velorix.backend.controller;
 
-import com.velorix.backend.model.HealthLog;
-import com.velorix.backend.repository.HealthLogRepository;
 import com.velorix.backend.security.JwtUtil;
+import com.velorix.backend.service.HealthCheckService;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.List;
+
+import com.velorix.backend.model.LogEntry;
+import com.velorix.backend.repository.LogRepository;
 
 @RestController
-@RequestMapping("/api/health")
-
+@RequestMapping("/health")
+@Slf4j
 public class HealthController {
-
-    @Autowired
-    private HealthLogRepository healthLogRepository;
 
     @Autowired
     private JwtUtil jwtUtil;
 
-    private String getUserIdFromRequest(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        String token = authHeader.substring(7);
-        return jwtUtil.getUserIdFromToken(token);
+    @Autowired
+    private HealthCheckService healthCheckService;
+
+    @Autowired
+    private LogRepository logRepository;
+
+    @GetMapping("/debug")
+    public List<LogEntry> getDebugLogs() {
+        return logRepository.findAll();
     }
 
-    @GetMapping("/logs/{endpointId}")
-    public ResponseEntity<List<HealthLog>> getLogs(@PathVariable String endpointId,
-                                                   @RequestParam(defaultValue = "0") int page,
-                                                   @RequestParam(defaultValue = "20") int size,
-                                                   HttpServletRequest request) {
-        String userId = getUserIdFromRequest(request);
-        // Optional: verify that endpoint belongs to user (skip for brevity)
-        List<HealthLog> logs = healthLogRepository.findByEndpointIdOrderByCheckedAtDesc(
-                endpointId,
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "checkedAt"))
-        );
-        return ResponseEntity.ok(logs);
+    // ✅ Health check endpoint
+    @GetMapping
+    public ResponseEntity<Map<String, Object>> health() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "UP");
+        response.put("timestamp", System.currentTimeMillis());
+        response.put("service", "Velorix Backend");
+        response.put("version", "1.0.0");
+
+        return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/stats/{endpointId}")
-    public ResponseEntity<Map<String, Object>> getStats(@PathVariable String endpointId,
-                                                        HttpServletRequest request) {
-        String userId = getUserIdFromRequest(request);
-        LocalDateTime twentyFourHoursAgo = LocalDateTime.now().minusHours(24);
-        List<HealthLog> last24h = healthLogRepository.findByEndpointIdAndCheckedAtBetween(
-                endpointId, twentyFourHoursAgo, LocalDateTime.now()
-        );
-        long uptimeCount = last24h.stream().filter(HealthLog::isUp).count();
-        double uptimePercentage = last24h.isEmpty() ? 100.0 : (uptimeCount * 100.0 / last24h.size());
-        double avgResponseTime = last24h.stream()
-                .mapToLong(HealthLog::getResponseTimeMs)
-                .average()
-                .orElse(0.0);
+    // ✅ Get current user info from token
+    @GetMapping("/current-user")
+    public ResponseEntity<Map<String, Object>> getCurrentUser() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(401).build();
+            }
+            String userId = auth.getName();
 
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("uptimePercentage", uptimePercentage);
-        stats.put("averageResponseTimeMs", avgResponseTime);
-        stats.put("totalChecks", last24h.size());
-        return ResponseEntity.ok(stats);
+            if (userId == null) {
+                return ResponseEntity.status(401).build();
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("userId", userId);
+            response.put("authenticated", true);
+            response.put("timestamp", System.currentTimeMillis());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting current user: {}", e.getMessage());
+            return ResponseEntity.status(401).build();
+        }
+    }
+
+    // ✅ Check if endpoint is up
+    @GetMapping("/check")
+    public ResponseEntity<Map<String, Object>> checkEndpoint(
+            @RequestParam String url) {
+
+        try {
+            boolean isUp = healthCheckService.checkEndpoint(url);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("url", url);
+            response.put("status", isUp ? "UP" : "DOWN");
+            response.put("timestamp", System.currentTimeMillis());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error checking endpoint: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }
