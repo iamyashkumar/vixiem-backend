@@ -79,12 +79,11 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Hardcoded CORS origins - production ready
-        configuration.setAllowedOrigins(Arrays.asList(
-                "https://velorix-frontend.vercel.app",
-                "http://localhost:5173",
-                "http://localhost:5174",
-                "http://localhost:3000"
+        // Allowed Origin Patterns for Vercel & Localhost
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+                "https://*.vercel.app",
+                "https://vixiem-*.vercel.app",
+                "http://localhost:*"
         ));
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
