@@ -198,16 +198,22 @@ public class AuthController {
     }
 
     private ResponseEntity<AuthResponse> buildCookieResponse(AuthResponse response, HttpStatus status) {
-        HttpCookie accessCookie = cookieUtil.createAccessTokenCookie(response.getAccessToken());
-        HttpCookie refreshCookie = cookieUtil.createRefreshTokenCookie(response.getRefreshToken());
-        
-        // Strip tokens from body for security
-        response.setAccessToken(null);
-        response.setRefreshToken(null);
-        
-        return ResponseEntity.status(status)
-                .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
-                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
-                .body(response);
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(status);
+
+        if (response != null) {
+            if (response.getAccessToken() != null) {
+                HttpCookie accessCookie = cookieUtil.createAccessTokenCookie(response.getAccessToken());
+                builder.header(HttpHeaders.SET_COOKIE, accessCookie.toString());
+                response.setAccessToken(null);
+            }
+
+            if (response.getRefreshToken() != null) {
+                HttpCookie refreshCookie = cookieUtil.createRefreshTokenCookie(response.getRefreshToken());
+                builder.header(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+                response.setRefreshToken(null);
+            }
+        }
+
+        return builder.body(response);
     }
 }
