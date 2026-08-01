@@ -200,7 +200,7 @@ public class AuthService {
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setEnabled(true);
-        user.setEmailVerified(false);
+        user.setEmailVerified(true);
         user.setCreatedAt(LocalDateTime.now());
 
         // Save user
