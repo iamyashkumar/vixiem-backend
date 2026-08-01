@@ -118,9 +118,14 @@ public class GlobalExceptionHandler {
         
         ex.printStackTrace();
 
+        String errorMsg = ex.getMessage();
+        if (errorMsg == null || errorMsg.trim().isEmpty()) {
+            errorMsg = ex.getCause() != null ? ex.getCause().toString() : ex.toString();
+        }
+
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .status(500)
-                .message(ex.getMessage() != null ? ex.getMessage() : "Internal server error")
+                .message(errorMsg)
                 .timestamp(System.currentTimeMillis())
                 .path(request.getRequestURI())
                 .error("INTERNAL_SERVER_ERROR")
