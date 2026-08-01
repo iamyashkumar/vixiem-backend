@@ -50,10 +50,24 @@ public class AuthController {
         return buildCookieResponse(response, HttpStatus.OK);
     }
 
+    @Autowired
+    private com.velorix.backend.repository.UserRepository userRepository;
+
     // ✅ Health check endpoint
     @GetMapping("/ping")
     public ResponseEntity<String> ping() {
         return ResponseEntity.ok("Pong! Backend is running.");
+    }
+
+    // ✅ Database diagnostic check endpoint
+    @GetMapping("/db-check")
+    public ResponseEntity<?> dbCheck() {
+        try {
+            long count = userRepository.count();
+            return ResponseEntity.ok(java.util.Map.of("status", "SUCCESS", "userCount", count));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(java.util.Map.of("status", "FAILED", "error", e.toString(), "message", e.getMessage() != null ? e.getMessage() : "null"));
+        }
     }
 
     // ✅ CSRF priming endpoint
