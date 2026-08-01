@@ -35,16 +35,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/auth/register",
-                                "/api/auth/login",
-                                "/api/auth/google",
-                                "/api/auth/verify-email",
-                                "/api/auth/resend-verification",
-                                "/api/auth/refresh",
-                                "/api/auth/csrf",
-                                "/api/auth/db-check",
-                                "/api/auth/hello",
-                                "/hello",
+                                "/api/auth/**",
                                 "/ping"
                         ).permitAll()
                         .anyRequest().authenticated()
