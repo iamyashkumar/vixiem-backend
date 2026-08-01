@@ -15,8 +15,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 import java.util.Arrays;
 import java.util.List;
@@ -32,32 +30,15 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
-        requestHandler.setCsrfRequestAttributeName(null);
-
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf
-                        .ignoringRequestMatchers(
-                                "/api/auth/register",
-                                "/api/auth/login",
-                                "/api/auth/google",
-                                "/api/auth/verify-email",
-                                "/api/auth/resend-verification",
-                                "/api/auth/refresh",
-                                "/api/auth/csrf",
-                                "/api/auth/profile/**",
-                                "/ping"
-                        )
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .csrfTokenRequestHandler(requestHandler)
-                )
+                .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/register",
                                 "/api/auth/login",
                                 "/api/auth/google",
-                                "/api/auth/verify",
+                                "/api/auth/verify-email",
                                 "/api/auth/resend-verification",
                                 "/api/auth/refresh",
                                 "/api/auth/csrf",
