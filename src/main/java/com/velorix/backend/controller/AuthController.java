@@ -59,6 +59,11 @@ public class AuthController {
         return ResponseEntity.ok("Pong! Backend is running.");
     }
 
+    @GetMapping("/hello")
+    public ResponseEntity<String> hello() {
+        return ResponseEntity.ok("Hello World!");
+    }
+
     // ✅ Database diagnostic check endpoint
     @GetMapping("/db-check")
     public ResponseEntity<?> dbCheck() {

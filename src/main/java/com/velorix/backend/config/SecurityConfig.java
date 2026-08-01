@@ -43,6 +43,8 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/csrf",
                                 "/api/auth/db-check",
+                                "/api/auth/hello",
+                                "/hello",
                                 "/ping"
                         ).permitAll()
                         .anyRequest().authenticated()
