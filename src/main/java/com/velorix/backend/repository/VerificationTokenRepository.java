@@ -9,6 +9,6 @@ import java.util.Optional;
 @Repository
 public interface VerificationTokenRepository extends MongoRepository<VerificationToken, String> {
     Optional<VerificationToken> findByToken(String token);
-    void deleteByUserEmail(String userEmail);
+    long deleteByUserEmail(String userEmail);
     Optional<VerificationToken> findByUserEmail(String userEmail);
 }

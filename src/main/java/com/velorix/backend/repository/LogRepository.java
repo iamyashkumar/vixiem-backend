@@ -12,5 +12,5 @@ public interface LogRepository extends MongoRepository<LogEntry, String> {
     List<LogEntry> findByUserIdAndLevelAndTimestampAfter(String userId, String level, LocalDateTime timestamp);
     long countByUserIdAndLevelAndTimestampAfter(String userId, String level, LocalDateTime timestamp);
     Optional<LogEntry> findByIdAndUserId(String id, String userId);
-    void deleteByUserId(String userId);
+    long deleteByUserId(String userId);
 }

@@ -8,5 +8,5 @@ public interface ApiEndpointRepository extends MongoRepository<ApiEndpoint, Stri
     List<ApiEndpoint> findByUserId(String userId);
     List<ApiEndpoint> findByUserIdAndIsActiveTrue(String userId);
     java.util.Optional<ApiEndpoint> findByIdAndUserId(String id, String userId);
-    void deleteByUserId(String userId);
+    long deleteByUserId(String userId);
 }
