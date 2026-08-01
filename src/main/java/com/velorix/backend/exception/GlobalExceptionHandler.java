@@ -120,7 +120,7 @@ public class GlobalExceptionHandler {
 
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .status(500)
-                .message("Internal server error")
+                .message(ex.getMessage() != null ? ex.getMessage() : "Internal server error")
                 .timestamp(System.currentTimeMillis())
                 .path(request.getRequestURI())
                 .error("INTERNAL_SERVER_ERROR")
