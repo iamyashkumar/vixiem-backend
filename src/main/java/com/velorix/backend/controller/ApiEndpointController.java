@@ -16,6 +16,9 @@ import com.velorix.backend.repository.UserRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.velorix.backend.model.User;
+import com.velorix.backend.security.CustomUserDetails;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
