@@ -28,8 +28,8 @@ public class AlertNotificationService {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired(required = false)
-    private HealthCheckService healthCheckService;
+    @Autowired
+    private com.velorix.backend.security.UrlSecurityValidator urlSecurityValidator;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -122,8 +122,8 @@ public class AlertNotificationService {
                 log.warn("Blocked potential Discord webhook SSRF attempt for non-discord host: {}", host);
                 return;
             }
-            if (healthCheckService != null) {
-                healthCheckService.validatePublicHttpUrl(webhookUrl);
+            if (urlSecurityValidator != null) {
+                urlSecurityValidator.validatePublicHttpUrl(webhookUrl);
             }
         } catch (Exception ex) {
             log.warn("Invalid Discord webhook URL format: {}", webhookUrl);
