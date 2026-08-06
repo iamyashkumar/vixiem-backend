@@ -79,23 +79,40 @@ public class AuthService {
             String email = null;
             String name = null;
 
-            // 1. Strict GoogleIdToken Verification (Signature, Expiration, Issuer, & Audience check)
-            try {
-                NetHttpTransport transport = new NetHttpTransport();
-                GsonFactory jsonFactory = new GsonFactory();
-                GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(transport, jsonFactory)
-                        .setAudience(Collections.singletonList(googleClientId))
-                        .build();
-
-                GoogleIdToken idToken = verifier.verify(credential);
-                if (idToken != null && idToken.getPayload() != null) {
-                    email = idToken.getPayload().getEmail();
-                    name = (String) idToken.getPayload().get("name");
-                } else {
-                    log.warn("GoogleIdToken verification returned null (invalid audience/signature/token)");
+            // 0. Try direct JSON profile payload (from Google UserInfo endpoint)
+            if (credential.trim().startsWith("{")) {
+                try {
+                    JsonNode jsonNode = objectMapper.readTree(credential);
+                    if (jsonNode.has("email")) {
+                        email = jsonNode.get("email").asText();
+                    }
+                    if (jsonNode.has("name")) {
+                        name = jsonNode.get("name").asText();
+                    }
+                } catch (Exception jsonEx) {
+                    log.warn("Direct JSON credential parse exception: {}", jsonEx.getMessage());
                 }
-            } catch (Exception ex) {
-                log.warn("GoogleIdToken verification exception: {}", ex.getMessage());
+            }
+
+            // 1. Strict GoogleIdToken Verification (Signature, Expiration, Issuer, & Audience check)
+            if (email == null || email.trim().isEmpty()) {
+                try {
+                    NetHttpTransport transport = new NetHttpTransport();
+                    GsonFactory jsonFactory = new GsonFactory();
+                    GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(transport, jsonFactory)
+                            .setAudience(Collections.singletonList(googleClientId))
+                            .build();
+
+                    GoogleIdToken idToken = verifier.verify(credential);
+                    if (idToken != null && idToken.getPayload() != null) {
+                        email = idToken.getPayload().getEmail();
+                        name = (String) idToken.getPayload().get("name");
+                    } else {
+                        log.warn("GoogleIdToken verification returned null (invalid audience/signature/token)");
+                    }
+                } catch (Exception ex) {
+                    log.warn("GoogleIdToken verification exception: {}", ex.getMessage());
+                }
             }
 
             if (email == null || email.trim().isEmpty()) {
@@ -198,24 +215,8 @@ public class AuthService {
             log.warn("Verification email dispatch warning: {}", ex.getMessage());
         }
 
-        // Generate tokens for instant automatic login
-        String accessToken = jwtUtil.generateAccessToken(savedUser.getEmail());
-        String refreshTokenStr = jwtUtil.generateRefreshToken(savedUser.getEmail());
-
-        RefreshToken refreshToken = RefreshToken.builder()
-                .token(refreshTokenStr)
-                .userEmail(savedUser.getEmail())
-                .expiresAt(LocalDateTime.now().plusDays(7))
-                .createdAt(LocalDateTime.now())
-                .build();
-        refreshTokenRepository.save(refreshToken);
-
         return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshTokenStr)
-                .tokenType("Bearer")
-                .expiresIn(900000L)
-                .message("User registered successfully.")
+                .message("User registered successfully. Please check your email to verify your account.")
                 .user(AuthResponse.UserDto.builder()
                         .id(savedUser.getId())
                         .email(savedUser.getEmail())
