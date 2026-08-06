@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 import com.velorix.backend.repository.UserRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -80,10 +81,11 @@ public class ApiEndpointController {
      * POST /api/endpoints - Create new endpoint with instant initial health check
      */
     @PostMapping
-    public ResponseEntity<?> createEndpoint(@RequestBody ApiEndpoint endpoint,
+    public ResponseEntity<?> createEndpoint(@Valid @RequestBody ApiEndpoint endpoint,
                                             HttpServletRequest request) {
         try {
             String userId = getUserIdFromRequest();
+            healthCheckService.validatePublicHttpUrl(endpoint.getUrl());
             endpoint.setUserId(userId);
             endpoint.setCreatedAt(LocalDateTime.now());
             
@@ -133,7 +135,7 @@ public class ApiEndpointController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<?> updateEndpoint(@PathVariable String id,
-                                            @RequestBody ApiEndpoint updated,
+                                            @Valid @RequestBody ApiEndpoint updated,
                                             HttpServletRequest request) {
         try {
             String userId = getUserIdFromRequest();
@@ -144,6 +146,7 @@ public class ApiEndpointController {
             }
 
             ApiEndpoint existing = existingOpt.get();
+            healthCheckService.validatePublicHttpUrl(updated.getUrl());
 
             existing.setName(updated.getName());
             existing.setUrl(updated.getUrl());

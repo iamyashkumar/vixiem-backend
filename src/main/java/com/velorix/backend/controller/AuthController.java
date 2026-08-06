@@ -116,7 +116,7 @@ public class AuthController {
             authService.revokeRefreshToken(refreshToken);
         }
         HttpCookie accessCookie = cookieUtil.clearCookie("access_token", "/");
-        HttpCookie refreshCookie = cookieUtil.clearCookie("refresh_token", "/api/auth/refresh");
+        HttpCookie refreshCookie = cookieUtil.clearCookie("refresh_token", "/");
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
@@ -135,7 +135,7 @@ public class AuthController {
             
             // Log out user since tokens are revoked
             HttpCookie accessCookie = cookieUtil.clearCookie("access_token", "/");
-            HttpCookie refreshCookie = cookieUtil.clearCookie("refresh_token", "/api/auth/refresh");
+            HttpCookie refreshCookie = cookieUtil.clearCookie("refresh_token", "/");
             
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
@@ -179,7 +179,7 @@ public class AuthController {
             
             // Clear cookies
             HttpCookie accessCookie = cookieUtil.clearCookie("access_token", "/");
-            HttpCookie refreshCookie = cookieUtil.clearCookie("refresh_token", "/api/auth/refresh");
+            HttpCookie refreshCookie = cookieUtil.clearCookie("refresh_token", "/");
             
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, accessCookie.toString())

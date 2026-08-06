@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,7 +25,6 @@ public class GlobalExceptionHandler {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getFieldErrors().forEach(error -> {
                 errors.put(error.getField(), error.getDefaultMessage());
-                System.out.println("VALIDATION ERROR: Field '" + error.getField() + "' -> " + error.getDefaultMessage());
         });
 
         ErrorResponse errorResponse = ErrorResponse.builder()
@@ -36,6 +36,12 @@ public class GlobalExceptionHandler {
                 .build();
 
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+        return new ResponseEntity<>(ErrorResponse.builder().status(403).message("Access denied")
+                .timestamp(System.currentTimeMillis()).path(request.getRequestURI()).error("ACCESS_DENIED").build(), HttpStatus.FORBIDDEN);
     }
 
     // ✅ Custom exceptions handle करो
@@ -116,16 +122,9 @@ public class GlobalExceptionHandler {
         Exception ex,
         HttpServletRequest request) {
         
-        ex.printStackTrace();
-
-        String errorMsg = ex.getMessage();
-        if (errorMsg == null || errorMsg.trim().isEmpty()) {
-            errorMsg = ex.getCause() != null ? ex.getCause().toString() : ex.toString();
-        }
-
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .status(500)
-                .message(errorMsg)
+                .message("An unexpected error occurred")
                 .timestamp(System.currentTimeMillis())
                 .path(request.getRequestURI())
                 .error("INTERNAL_SERVER_ERROR")

@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Document(collection = "logs")
 @CompoundIndexes({
+    @CompoundIndex(name = "user_timestamp_idx", def = "{'userId': 1, 'timestamp': -1}"),
     @CompoundIndex(name = "user_time_idx", def = "{'userId': 1, 'timestamp': -1}"),
     @CompoundIndex(name = "endpoint_time_idx", def = "{'endpointId': 1, 'timestamp': -1}")
 })

@@ -186,12 +186,8 @@ public class AuthService {
             throw new DuplicateResourceException("User", request.getEmail());
         }
 
-        Optional<User> existingUsernameOwner = userRepository.findByUsername(request.getUsername());
-        if (existingUsernameOwner.isPresent() && !existingUsernameOwner.get().getEmail().equalsIgnoreCase(request.getEmail())) {
-            User oldOwner = existingUsernameOwner.get();
-            oldOwner.setUsername(oldOwner.getEmail().split("@")[0] + "_" + System.currentTimeMillis() % 1000);
-            userRepository.save(oldOwner);
-            log.info("Freed username {} from old account {}", request.getUsername(), oldOwner.getEmail());
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw new DuplicateResourceException("Username", request.getUsername());
         }
 
         // Create new user
@@ -392,6 +388,7 @@ public class AuthService {
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setLastPasswordResetDate(new java.util.Date());
         userRepository.save(user);
         
         refreshTokenRepository.deleteByUserEmail(email);
@@ -418,10 +415,7 @@ public class AuthService {
 
         Optional<User> existing = userRepository.findByUsername(cleanUsername);
         if (existing.isPresent() && !existing.get().getEmail().equalsIgnoreCase(email)) {
-            User otherUser = existing.get();
-            otherUser.setUsername(otherUser.getEmail().split("@")[0] + "_" + System.currentTimeMillis() % 1000);
-            userRepository.save(otherUser);
-            log.info("Freed username {} from old user account {}", cleanUsername, otherUser.getEmail());
+            throw new DuplicateResourceException("Username", cleanUsername);
         }
 
         user.setUsername(cleanUsername);
@@ -441,7 +435,7 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("User not found"));
 
-        String userId = user.getId();
+        String userId = user.getEmail();
         
         auditService.logEvent(userId, "ACCOUNT_DELETED", java.util.Map.of("email", email));
         

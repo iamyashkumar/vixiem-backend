@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URI;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +35,12 @@ public class HealthCheckService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private AlertNotificationService alertNotificationService;
+
+    @Autowired
+    private SseNotificationService sseNotificationService;
 
     @Scheduled(fixedDelay = 60000) // Every 60 seconds
     public void checkAllEndpoints() {
@@ -63,9 +72,12 @@ public class HealthCheckService {
                 logEntry.setMessage(isUp ? "Endpoint is UP. Response time: " + responseTime + "ms" : "Endpoint is DOWN or unreachable.");
                 logEntry.setResponseTimeMs(isUp ? responseTime : null);
                 logEntry.setTimestamp(LocalDateTime.now());
-                logRepository.save(logEntry);
+                LogEntry savedLog = logRepository.save(logEntry);
+
+                // Broadcast live log event via SSE
+                sseNotificationService.broadcastLog(endpoint.getUserId(), savedLog);
                 
-                processAlerts(endpoint, isUp);
+                processAlerts(endpoint, isUp, isUp ? null : "HTTP health check failed / non-2xx response");
                 
             } catch (Exception e) {
                 log.warn("Error checking endpoint {}: {}", endpoint.getUrl(), e.getMessage());
@@ -78,14 +90,17 @@ public class HealthCheckService {
                 logEntry.setMessage("Error during ping: " + e.getMessage());
                 logEntry.setResponseTimeMs(null);
                 logEntry.setTimestamp(LocalDateTime.now());
-                logRepository.save(logEntry);
+                LogEntry savedLog = logRepository.save(logEntry);
+
+                // Broadcast live log event via SSE
+                sseNotificationService.broadcastLog(endpoint.getUserId(), savedLog);
                 
-                processAlerts(endpoint, false);
+                processAlerts(endpoint, false, "Error during ping: " + e.getMessage());
             }
         }
     }
 
-    private void processAlerts(ApiEndpoint endpoint, boolean isUp) {
+    private void processAlerts(ApiEndpoint endpoint, boolean isUp, String errorMessage) {
         Boolean lastStatus = endpoint.getLastStatus();
         LocalDateTime now = LocalDateTime.now();
         
@@ -94,19 +109,21 @@ public class HealthCheckService {
             endpoint.setLastStatus(isUp);
             endpoint.setStatusChangedAt(now);
             
-            // If it went DOWN and alerts are enabled
-            if (!isUp && endpoint.isAlertsEnabled()) {
+            boolean hasDiscord = endpoint.getDiscordWebhookUrl() != null && !endpoint.getDiscordWebhookUrl().trim().isEmpty();
+            boolean hasAlerts = endpoint.isAlertsEnabled() || hasDiscord;
+
+            // If it went DOWN
+            if (!isUp && hasAlerts) {
                 LocalDateTime lastAlert = endpoint.getLastAlertSentAt();
                 // Cooldown: 5 minutes
                 if (lastAlert == null || lastAlert.isBefore(now.minusMinutes(5))) {
-                    sendEmail(endpoint, true);
+                    alertNotificationService.sendDowntimeAlert(endpoint, true, errorMessage);
                     endpoint.setLastAlertSentAt(now);
                 }
             }
-            // If it recovered (went UP) and alerts are enabled, send immediately (no cooldown)
-            else if (isUp && endpoint.isAlertsEnabled() && lastStatus != null) {
-                sendEmail(endpoint, false);
-                // We don't update lastAlertSentAt for recovery to not block subsequent DOWN alerts
+            // If it recovered (went UP), send immediately (no cooldown)
+            else if (isUp && hasAlerts && lastStatus != null) {
+                alertNotificationService.sendDowntimeAlert(endpoint, false, null);
             }
             
             apiEndpointRepository.save(endpoint);
@@ -129,10 +146,13 @@ public class HealthCheckService {
 
     public boolean checkEndpoint(String urlString) {
         try {
-            URL url = new URL(urlString);
+            URI uri = validatePublicHttpUrl(urlString);
+            URL url = uri.toURL();
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+            connection.setInstanceFollowRedirects(false);
             connection.connect();
 
             int responseCode = connection.getResponseCode();
@@ -143,5 +163,33 @@ public class HealthCheckService {
             log.error("Error checking endpoint: {}", e.getMessage());
             return false;
         }
+    }
+
+    /** Prevent the monitoring worker from being used to probe private infrastructure. */
+    public URI validatePublicHttpUrl(String value) {
+        try {
+            URI uri = new URI(value == null ? "" : value.trim());
+            if (!uri.isAbsolute() || uri.getHost() == null || uri.getUserInfo() != null
+                    || !("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))) {
+                throw new IllegalArgumentException("Only absolute HTTP(S) URLs without credentials are allowed");
+            }
+            for (InetAddress address : InetAddress.getAllByName(uri.getHost())) {
+                if (isPrivateAddress(address)) {
+                    throw new IllegalArgumentException("Private, loopback, and link-local addresses cannot be monitored");
+                }
+            }
+            return uri;
+        } catch (UnknownHostException e) {
+            throw new IllegalArgumentException("The endpoint host could not be resolved");
+        } catch (java.net.URISyntaxException e) {
+            throw new IllegalArgumentException("Invalid endpoint URL");
+        }
+    }
+
+    private boolean isPrivateAddress(InetAddress address) {
+        byte[] bytes = address.getAddress();
+        boolean carrierGradeNat = bytes.length == 4 && (bytes[0] & 0xff) == 100 && ((bytes[1] & 0xff) >= 64 && (bytes[1] & 0xff) <= 127);
+        return address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress()
+                || address.isSiteLocalAddress() || address.isMulticastAddress() || carrierGradeNat;
     }
 }

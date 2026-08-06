@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.nio.charset.StandardCharsets;
+import jakarta.annotation.PostConstruct;
 import io.jsonwebtoken.Claims;
 
 
@@ -23,6 +25,13 @@ public class JwtUtil {
 
     @Value("${jwt.refresh-token.expiration.ms}")
     private long refreshTokenExpiration;
+
+    @PostConstruct
+    private void validateSigningSecret() {
+        if (jwtSecret == null || jwtSecret.getBytes(StandardCharsets.UTF_8).length < 64) {
+            throw new IllegalStateException("JWT_SECRET must be set to a cryptographically random value of at least 64 bytes");
+        }
+    }
 
     // ✅ Get signing key
     private SecretKey getSigningKey() {
@@ -80,6 +89,10 @@ public class JwtUtil {
             log.error("Token validation error: {}", e.getMessage());
             throw new RuntimeException("Token validation failed", e);
         }
+    }
+
+    public boolean isAccessToken(String token) {
+        return "access".equals(getTokenType(token));
     }
 
     // ✅ Check if token is expired

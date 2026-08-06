@@ -8,22 +8,25 @@ import org.springframework.beans.factory.annotation.Value;
 @Component
 public class CookieUtil {
 
-    @Value("${jwt.expiration:900000}")
+    @Value("${jwt.access-token.expiration.ms:900000}")
     private long jwtExpiration;
 
-    @Value("${jwt.refreshExpiration:604800000}")
+    @Value("${jwt.refresh-token.expiration.ms:604800000}")
     private long refreshExpiration;
 
-    @Value("${app.is-production:true}")
-    private boolean isProduction;
+    @Value("${app.cookie.secure:true}")
+    private boolean secureCookies;
+
+    @Value("${app.cookie.same-site:None}")
+    private String sameSite;
 
     public HttpCookie createAccessTokenCookie(String token) {
         return ResponseCookie.from("access_token", token)
                 .maxAge(jwtExpiration / 1000)
                 .httpOnly(true)
-                .secure(isProduction)
+                .secure(secureCookies)
                 .path("/")
-                .sameSite(isProduction ? "None" : "Lax")
+                .sameSite(sameSite)
                 .build();
     }
 
@@ -31,9 +34,9 @@ public class CookieUtil {
         return ResponseCookie.from("refresh_token", token)
                 .maxAge(refreshExpiration / 1000)
                 .httpOnly(true)
-                .secure(isProduction)
+                .secure(secureCookies)
                 .path("/")
-                .sameSite(isProduction ? "None" : "Lax")
+                .sameSite(sameSite)
                 .build();
     }
 
@@ -41,9 +44,9 @@ public class CookieUtil {
         return ResponseCookie.from(name, "")
                 .maxAge(0)
                 .httpOnly(true)
-                .secure(isProduction)
+                .secure(secureCookies)
                 .path(path)
-                .sameSite(isProduction ? "None" : "Lax")
+                .sameSite(sameSite)
                 .build();
     }
 }

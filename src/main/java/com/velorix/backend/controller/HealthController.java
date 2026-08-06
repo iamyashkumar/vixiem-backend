@@ -31,11 +31,6 @@ public class HealthController {
     @Autowired
     private LogRepository logRepository;
 
-    @GetMapping("/debug")
-    public List<LogEntry> getDebugLogs() {
-        return logRepository.findAll();
-    }
-
     // ✅ Health check endpoint
     @GetMapping
     public ResponseEntity<Map<String, Object>> health() {
@@ -75,22 +70,4 @@ public class HealthController {
     }
 
     // ✅ Check if endpoint is up
-    @GetMapping("/check")
-    public ResponseEntity<Map<String, Object>> checkEndpoint(
-            @RequestParam String url) {
-
-        try {
-            boolean isUp = healthCheckService.checkEndpoint(url);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("url", url);
-            response.put("status", isUp ? "UP" : "DOWN");
-            response.put("timestamp", System.currentTimeMillis());
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error checking endpoint: {}", e.getMessage());
-            return ResponseEntity.internalServerError().build();
-        }
-    }
 }
