@@ -79,15 +79,32 @@ public class AuthService {
             String email = null;
             String name = null;
 
-            // 1. Try standard GoogleIdToken parser
-            try {
-                GoogleIdToken idToken = GoogleIdToken.parse(new GsonFactory(), credential);
-                if (idToken != null && idToken.getPayload() != null) {
-                    email = idToken.getPayload().getEmail();
-                    name = (String) idToken.getPayload().get("name");
+            // 0. Try direct JSON string payload (e.g. from Google UserInfo endpoint)
+            if (credential.trim().startsWith("{")) {
+                try {
+                    JsonNode jsonNode = objectMapper.readTree(credential);
+                    if (jsonNode.has("email")) {
+                        email = jsonNode.get("email").asText();
+                    }
+                    if (jsonNode.has("name")) {
+                        name = jsonNode.get("name").asText();
+                    }
+                } catch (Exception jsonEx) {
+                    log.warn("Direct JSON credential parse exception: {}", jsonEx.getMessage());
                 }
-            } catch (Exception ex) {
-                log.warn("GoogleIdToken parse exception: {}", ex.getMessage());
+            }
+
+            // 1. Try standard GoogleIdToken parser
+            if (email == null || email.trim().isEmpty()) {
+                try {
+                    GoogleIdToken idToken = GoogleIdToken.parse(new GsonFactory(), credential);
+                    if (idToken != null && idToken.getPayload() != null) {
+                        email = idToken.getPayload().getEmail();
+                        name = (String) idToken.getPayload().get("name");
+                    }
+                } catch (Exception ex) {
+                    log.warn("GoogleIdToken parse exception: {}", ex.getMessage());
+                }
             }
 
             // 2. Direct Base64 JWT JSON Payload Decoding Fallback (100% Reliable & Independent)
@@ -204,10 +221,30 @@ public class AuthService {
         log.info("User registered successfully with id: {}", savedUser.getId());
 
         // Send Verification Email
-        emailVerificationService.sendVerificationEmail(savedUser.getEmail());
+        try {
+            emailVerificationService.sendVerificationEmail(savedUser.getEmail());
+        } catch (Exception ex) {
+            log.warn("Verification email dispatch warning: {}", ex.getMessage());
+        }
+
+        // Generate tokens for instant automatic login
+        String accessToken = jwtUtil.generateAccessToken(savedUser.getEmail());
+        String refreshTokenStr = jwtUtil.generateRefreshToken(savedUser.getEmail());
+
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token(refreshTokenStr)
+                .userEmail(savedUser.getEmail())
+                .expiresAt(LocalDateTime.now().plusDays(7))
+                .createdAt(LocalDateTime.now())
+                .build();
+        refreshTokenRepository.save(refreshToken);
 
         return AuthResponse.builder()
-                .message("User registered successfully. Please check your email to verify.")
+                .accessToken(accessToken)
+                .refreshToken(refreshTokenStr)
+                .tokenType("Bearer")
+                .expiresIn(900000L)
+                .message("User registered successfully.")
                 .user(AuthResponse.UserDto.builder()
                         .id(savedUser.getId())
                         .email(savedUser.getEmail())
