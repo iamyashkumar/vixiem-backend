@@ -44,10 +44,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf
-                        .csrfTokenRepository(csrfTokenRepository())
-                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                        .ignoringRequestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/google", "/api/auth/resend-verification"))
+                .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/health", "/ping", "/api/auth/login", "/api/auth/register", "/api/auth/google", "/api/auth/refresh", "/api/auth/verify-email", "/api/auth/resend-verification", "/api/auth/csrf").permitAll()
                         .anyRequest().authenticated()

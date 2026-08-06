@@ -46,10 +46,16 @@ public class ApiEndpointController {
      */
     private String getUserIdFromRequest() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
             throw new RuntimeException("User not authenticated");
         }
-        return auth.getName();
+        if (auth.getPrincipal() instanceof CustomUserDetails) {
+            return ((CustomUserDetails) auth.getPrincipal()).getUser().getId();
+        }
+        String email = auth.getName();
+        return userRepository.findByEmail(email)
+                .map(User::getId)
+                .orElse(email);
     }
 
     /**
