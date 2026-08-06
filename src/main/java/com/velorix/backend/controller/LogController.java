@@ -74,8 +74,8 @@ public class LogController {
         Query query = new Query(criteria);
         long total = mongoTemplate.count(query, LogEntry.class);
         
-        log.info("DEBUG: User ID: {}, Level: {}, Keyword: {}", userId, level, keyword);
-        log.info("DEBUG: Total logs found in DB for this user: {}", total);
+        log.debug("User ID: {}, Level: {}, Keyword: {}", userId, level, keyword);
+        log.debug("Total logs found in DB for this user: {}", total);
 
         query.with(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp")));
         List<LogEntry> logs = mongoTemplate.find(query, LogEntry.class);

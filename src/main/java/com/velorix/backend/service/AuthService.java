@@ -79,56 +79,27 @@ public class AuthService {
             String email = null;
             String name = null;
 
-            // 0. Try direct JSON string payload (e.g. from Google UserInfo endpoint)
-            if (credential.trim().startsWith("{")) {
-                try {
-                    JsonNode jsonNode = objectMapper.readTree(credential);
-                    if (jsonNode.has("email")) {
-                        email = jsonNode.get("email").asText();
-                    }
-                    if (jsonNode.has("name")) {
-                        name = jsonNode.get("name").asText();
-                    }
-                } catch (Exception jsonEx) {
-                    log.warn("Direct JSON credential parse exception: {}", jsonEx.getMessage());
-                }
-            }
+            // 1. Strict GoogleIdToken Verification (Signature, Expiration, Issuer, & Audience check)
+            try {
+                NetHttpTransport transport = new NetHttpTransport();
+                GsonFactory jsonFactory = new GsonFactory();
+                GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(transport, jsonFactory)
+                        .setAudience(Collections.singletonList(googleClientId))
+                        .build();
 
-            // 1. Try standard GoogleIdToken parser
-            if (email == null || email.trim().isEmpty()) {
-                try {
-                    GoogleIdToken idToken = GoogleIdToken.parse(new GsonFactory(), credential);
-                    if (idToken != null && idToken.getPayload() != null) {
-                        email = idToken.getPayload().getEmail();
-                        name = (String) idToken.getPayload().get("name");
-                    }
-                } catch (Exception ex) {
-                    log.warn("GoogleIdToken parse exception: {}", ex.getMessage());
+                GoogleIdToken idToken = verifier.verify(credential);
+                if (idToken != null && idToken.getPayload() != null) {
+                    email = idToken.getPayload().getEmail();
+                    name = (String) idToken.getPayload().get("name");
+                } else {
+                    log.warn("GoogleIdToken verification returned null (invalid audience/signature/token)");
                 }
-            }
-
-            // 2. Direct Base64 JWT JSON Payload Decoding Fallback (100% Reliable & Independent)
-            if (email == null || email.trim().isEmpty()) {
-                try {
-                    String[] parts = credential.split("\\.");
-                    if (parts.length >= 2) {
-                        byte[] decodedBytes = Base64.getUrlDecoder().decode(parts[1]);
-                        String payloadJson = new String(decodedBytes, StandardCharsets.UTF_8);
-                        JsonNode jsonNode = objectMapper.readTree(payloadJson);
-                        if (jsonNode.has("email")) {
-                            email = jsonNode.get("email").asText();
-                        }
-                        if (jsonNode.has("name")) {
-                            name = jsonNode.get("name").asText();
-                        }
-                    }
-                } catch (Exception decEx) {
-                    log.error("Direct JWT decoding error: {}", decEx.getMessage());
-                }
+            } catch (Exception ex) {
+                log.warn("GoogleIdToken verification exception: {}", ex.getMessage());
             }
 
             if (email == null || email.trim().isEmpty()) {
-                throw new InvalidCredentialsException("Failed to extract valid email from Google token");
+                throw new InvalidCredentialsException("Failed to verify Google ID token");
             }
 
             log.info("Successfully resolved Google account email: {}", email);
@@ -213,7 +184,7 @@ public class AuthService {
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setEnabled(true);
-        user.setEmailVerified(true);
+        user.setEmailVerified(false);
         user.setCreatedAt(LocalDateTime.now());
 
         // Save user

@@ -2,8 +2,7 @@ package com.velorix.backend.controller;
 
 import com.velorix.backend.model.AlertRule;
 import com.velorix.backend.repository.AlertRuleRepository;
-import com.velorix.backend.security.JwtUtil;
-import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,14 +15,10 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/rules")
-
 public class AlertRuleController {
 
     @Autowired
     private AlertRuleRepository alertRuleRepository;
-
-    @Autowired
-    private JwtUtil jwtUtil;
 
     private String getUserIdFromRequest() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -34,7 +29,7 @@ public class AlertRuleController {
     }
 
     @PostMapping
-    public ResponseEntity<?> createRule(@RequestBody AlertRule rule) {
+    public ResponseEntity<?> createRule(@Valid @RequestBody AlertRule rule) {
         String userId = getUserIdFromRequest();
         rule.setUserId(userId);
         rule.setCreatedAt(LocalDateTime.now());
@@ -47,5 +42,43 @@ public class AlertRuleController {
     public ResponseEntity<List<AlertRule>> getUserRules() {
         String userId = getUserIdFromRequest();
         return ResponseEntity.ok(alertRuleRepository.findByUserId(userId));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getRuleById(@PathVariable String id) {
+        String userId = getUserIdFromRequest();
+        return alertRuleRepository.findById(id)
+                .filter(rule -> userId.equals(rule.getUserId()))
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateRule(@PathVariable String id, @Valid @RequestBody AlertRule updatedRule) {
+        String userId = getUserIdFromRequest();
+        return alertRuleRepository.findById(id)
+                .filter(rule -> userId.equals(rule.getUserId()))
+                .map(existingRule -> {
+                    existingRule.setName(updatedRule.getName());
+                    existingRule.setMetric(updatedRule.getMetric());
+                    existingRule.setCondition(updatedRule.getCondition());
+                    existingRule.setThreshold(updatedRule.getThreshold());
+                    existingRule.setEnabled(updatedRule.isEnabled());
+                    AlertRule saved = alertRuleRepository.save(existingRule);
+                    return ResponseEntity.ok(saved);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteRule(@PathVariable String id) {
+        String userId = getUserIdFromRequest();
+        return alertRuleRepository.findById(id)
+                .filter(rule -> userId.equals(rule.getUserId()))
+                .map(existingRule -> {
+                    alertRuleRepository.delete(existingRule);
+                    return ResponseEntity.ok(Map.of("message", "Rule deleted successfully"));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 }

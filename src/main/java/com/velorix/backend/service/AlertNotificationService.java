@@ -28,6 +28,9 @@ public class AlertNotificationService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired(required = false)
+    private HealthCheckService healthCheckService;
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Async
@@ -110,6 +113,23 @@ public class AlertNotificationService {
 
     private void sendDiscordWebhookNotification(ApiEndpoint endpoint, boolean isDown, String errorMessage) {
         String webhookUrl = endpoint.getDiscordWebhookUrl().trim();
+
+        // SSRF & Domain Validation: Enforce HTTPS & official discord webhook hostname
+        try {
+            java.net.URI uri = new java.net.URI(webhookUrl);
+            String host = uri.getHost();
+            if (host == null || (!host.equalsIgnoreCase("discord.com") && !host.equalsIgnoreCase("discordapp.com") && !host.endsWith(".discord.com") && !host.endsWith(".discordapp.com"))) {
+                log.warn("Blocked potential Discord webhook SSRF attempt for non-discord host: {}", host);
+                return;
+            }
+            if (healthCheckService != null && !healthCheckService.validatePublicHttpUrl(webhookUrl)) {
+                log.warn("Blocked non-public Discord webhook URL: {}", webhookUrl);
+                return;
+            }
+        } catch (Exception ex) {
+            log.warn("Invalid Discord webhook URL format: {}", webhookUrl);
+            return;
+        }
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);

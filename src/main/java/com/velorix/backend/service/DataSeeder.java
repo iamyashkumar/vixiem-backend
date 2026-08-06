@@ -10,7 +10,10 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
+import org.springframework.context.annotation.Profile;
+
 @Component
+@Profile({"dev", "test"})
 @Slf4j
 public class DataSeeder implements CommandLineRunner {
 

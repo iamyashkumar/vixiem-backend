@@ -45,14 +45,14 @@ public class HealthCheckService {
     @Scheduled(fixedDelay = 60000) // Every 60 seconds
     public void checkAllEndpoints() {
         List<ApiEndpoint> endpoints = apiEndpointRepository.findAll();
-        log.info("Running health check for {} endpoints from DB", endpoints.size());
+        log.debug("Running health check for {} endpoints from DB", endpoints.size());
 
         for (ApiEndpoint endpoint : endpoints) {
-            log.info("DEBUG: Found Endpoint in DB -> ID: {}, URL: {}, Active: {}, UserId: {}", 
+            log.debug("Endpoint ID: {}, URL: {}, Active: {}, UserId: {}", 
                      endpoint.getId(), endpoint.getUrl(), endpoint.isActive(), endpoint.getUserId());
                      
             if (!endpoint.isActive()) {
-                log.info("DEBUG: Skipping {} because it is NOT active.", endpoint.getUrl());
+                log.debug("Skipping {} because it is NOT active.", endpoint.getUrl());
                 continue; // Skip paused endpoints
             }
             
@@ -101,46 +101,21 @@ public class HealthCheckService {
     }
 
     private void processAlerts(ApiEndpoint endpoint, boolean isUp, String errorMessage) {
-        Boolean lastStatus = endpoint.getLastStatus();
-        LocalDateTime now = LocalDateTime.now();
-        
-        // If status changed
-        if (lastStatus == null || lastStatus != isUp) {
-            endpoint.setLastStatus(isUp);
-            endpoint.setStatusChangedAt(now);
-            
-            boolean hasDiscord = endpoint.getDiscordWebhookUrl() != null && !endpoint.getDiscordWebhookUrl().trim().isEmpty();
-            boolean hasAlerts = endpoint.isAlertsEnabled() || hasDiscord;
+        boolean wasDown = "DOWN".equalsIgnoreCase(endpoint.getStatus());
+        boolean isDown = !isUp;
 
-            // If it went DOWN
-            if (!isUp && hasAlerts) {
-                LocalDateTime lastAlert = endpoint.getLastAlertSentAt();
-                // Cooldown: 5 minutes
-                if (lastAlert == null || lastAlert.isBefore(now.minusMinutes(5))) {
-                    alertNotificationService.sendDowntimeAlert(endpoint, true, errorMessage);
-                    endpoint.setLastAlertSentAt(now);
-                }
-            }
-            // If it recovered (went UP), send immediately (no cooldown)
-            else if (isUp && hasAlerts && lastStatus != null) {
-                alertNotificationService.sendDowntimeAlert(endpoint, false, null);
-            }
-            
-            apiEndpointRepository.save(endpoint);
-        }
-    }
+        // Update current endpoint status in DB
+        endpoint.setStatus(isUp ? "UP" : "DOWN");
+        endpoint.setLastChecked(LocalDateTime.now());
+        apiEndpointRepository.save(endpoint);
 
-    private void sendEmail(ApiEndpoint endpoint, boolean isDown) {
-        String email = endpoint.getUserId(); // Assume it's the email
-        if (!email.contains("@")) {
-            // It might be an ID (from old seed data), fetch user
-            Optional<User> userOpt = userRepository.findById(email);
-            if (userOpt.isPresent()) {
-                email = userOpt.get().getEmail();
-            }
-        }
-        if (email.contains("@")) {
-            emailService.sendAlertEmail(email, endpoint.getName(), endpoint.getUrl(), isDown);
+        // State transition trigger logic
+        if (isDown && !wasDown) {
+            // TRANSITION: UP -> DOWN (Trigger Urgent Downtime Alert)
+            alertNotificationService.sendDowntimeAlert(endpoint, true, errorMessage);
+        } else if (!isDown && wasDown) {
+            // TRANSITION: DOWN -> UP (Trigger Recovery Alert)
+            alertNotificationService.sendDowntimeAlert(endpoint, false, null);
         }
     }
 
