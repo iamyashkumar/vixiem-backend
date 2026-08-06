@@ -101,21 +101,32 @@ public class HealthCheckService {
     }
 
     private void processAlerts(ApiEndpoint endpoint, boolean isUp, String errorMessage) {
-        boolean wasDown = "DOWN".equalsIgnoreCase(endpoint.getStatus());
-        boolean isDown = !isUp;
+        Boolean lastStatus = endpoint.getLastStatus();
+        LocalDateTime now = LocalDateTime.now();
+        
+        // If status changed
+        if (lastStatus == null || lastStatus != isUp) {
+            endpoint.setLastStatus(isUp);
+            endpoint.setStatusChangedAt(now);
+            
+            boolean hasDiscord = endpoint.getDiscordWebhookUrl() != null && !endpoint.getDiscordWebhookUrl().trim().isEmpty();
+            boolean hasAlerts = endpoint.isAlertsEnabled() || hasDiscord;
 
-        // Update current endpoint status in DB
-        endpoint.setStatus(isUp ? "UP" : "DOWN");
-        endpoint.setLastChecked(LocalDateTime.now());
-        apiEndpointRepository.save(endpoint);
-
-        // State transition trigger logic
-        if (isDown && !wasDown) {
-            // TRANSITION: UP -> DOWN (Trigger Urgent Downtime Alert)
-            alertNotificationService.sendDowntimeAlert(endpoint, true, errorMessage);
-        } else if (!isDown && wasDown) {
-            // TRANSITION: DOWN -> UP (Trigger Recovery Alert)
-            alertNotificationService.sendDowntimeAlert(endpoint, false, null);
+            // If it went DOWN
+            if (!isUp && hasAlerts) {
+                LocalDateTime lastAlert = endpoint.getLastAlertSentAt();
+                // Cooldown: 5 minutes
+                if (lastAlert == null || lastAlert.isBefore(now.minusMinutes(5))) {
+                    alertNotificationService.sendDowntimeAlert(endpoint, true, errorMessage);
+                    endpoint.setLastAlertSentAt(now);
+                }
+            }
+            // If it recovered (went UP), send immediately (no cooldown)
+            else if (isUp && hasAlerts && lastStatus != null) {
+                alertNotificationService.sendDowntimeAlert(endpoint, false, null);
+            }
+            
+            apiEndpointRepository.save(endpoint);
         }
     }
 

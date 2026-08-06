@@ -60,9 +60,11 @@ public class AlertRuleController {
                 .filter(rule -> userId.equals(rule.getUserId()))
                 .map(existingRule -> {
                     existingRule.setName(updatedRule.getName());
-                    existingRule.setMetric(updatedRule.getMetric());
-                    existingRule.setCondition(updatedRule.getCondition());
-                    existingRule.setThreshold(updatedRule.getThreshold());
+                    existingRule.setErrorThreshold(updatedRule.getErrorThreshold());
+                    existingRule.setTimeWindowMinutes(updatedRule.getTimeWindowMinutes());
+                    existingRule.setChannels(updatedRule.getChannels());
+                    existingRule.setEmail(updatedRule.getEmail());
+                    existingRule.setTelegramChatId(updatedRule.getTelegramChatId());
                     existingRule.setEnabled(updatedRule.isEnabled());
                     AlertRule saved = alertRuleRepository.save(existingRule);
                     return ResponseEntity.ok(saved);

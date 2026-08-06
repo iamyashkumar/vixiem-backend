@@ -122,9 +122,8 @@ public class AlertNotificationService {
                 log.warn("Blocked potential Discord webhook SSRF attempt for non-discord host: {}", host);
                 return;
             }
-            if (healthCheckService != null && !healthCheckService.validatePublicHttpUrl(webhookUrl)) {
-                log.warn("Blocked non-public Discord webhook URL: {}", webhookUrl);
-                return;
+            if (healthCheckService != null) {
+                healthCheckService.validatePublicHttpUrl(webhookUrl);
             }
         } catch (Exception ex) {
             log.warn("Invalid Discord webhook URL format: {}", webhookUrl);
