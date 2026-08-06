@@ -79,12 +79,20 @@ public class AuthController {
 
     // ✅ Refresh Token endpoint
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refresh(@CookieValue(name = "refresh_token", required = false) String refreshToken) {
-        if (refreshToken == null || refreshToken.isEmpty()) {
+    public ResponseEntity<AuthResponse> refresh(
+            @CookieValue(name = "refresh_token", required = false) String cookieRefreshToken,
+            @RequestBody(required = false) RefreshTokenRequest requestBody) {
+        
+        String tokenToUse = cookieRefreshToken;
+        if ((tokenToUse == null || tokenToUse.isEmpty()) && requestBody != null) {
+            tokenToUse = requestBody.getRefresh_token();
+        }
+        
+        if (tokenToUse == null || tokenToUse.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         RefreshTokenRequest request = new RefreshTokenRequest();
-        request.setRefresh_token(refreshToken);
+        request.setRefresh_token(tokenToUse);
         AuthResponse response = authService.refresh(request);
         return buildCookieResponse(response, HttpStatus.OK);
     }
