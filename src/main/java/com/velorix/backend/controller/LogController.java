@@ -69,11 +69,18 @@ public class LogController {
 
         // Build query criteria
         Criteria criteria = Criteria.where("userId").in(userIds);
-        if (level != null && !level.isEmpty()) {
-            criteria = criteria.and("level").is(level);
+        if (level != null && !level.trim().isEmpty()) {
+            criteria = criteria.and("level").is(level.trim());
         }
-        if (keyword != null && !keyword.isEmpty()) {
-            criteria = criteria.and("message").regex(keyword, "i"); // case‑insensitive search
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            String escapedKeyword = java.util.regex.Pattern.quote(keyword.trim());
+            Criteria keywordCriteria = new Criteria().orOperator(
+                    Criteria.where("message").regex(escapedKeyword, "i"),
+                    Criteria.where("source").regex(escapedKeyword, "i"),
+                    Criteria.where("level").regex(escapedKeyword, "i"),
+                    Criteria.where("endpointId").regex(escapedKeyword, "i")
+            );
+            criteria.andOperator(keywordCriteria);
         }
 
         Query query = new Query(criteria);
