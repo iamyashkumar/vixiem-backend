@@ -36,18 +36,23 @@ public class LogController {
     @Autowired
     private MongoTemplate mongoTemplate;
 
-    private String getUserIdFromRequest() {
+    private List<String> getUserIdsFromRequest() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
             throw new RuntimeException("User not authenticated");
         }
-        return auth.getName();
+        String email = auth.getName();
+        java.util.Optional<com.velorix.backend.model.User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isPresent()) {
+            return List.of(userOpt.get().getId(), email);
+        }
+        return List.of(email);
     }
 
     @PostMapping
     public ResponseEntity<?> ingestLog(@RequestBody LogEntry logEntry) {
-        String userId = getUserIdFromRequest();
-        logEntry.setUserId(userId);
+        List<String> userIds = getUserIdsFromRequest();
+        logEntry.setUserId(userIds.get(0));
         logEntry.setTimestamp(LocalDateTime.now());
         logRepository.save(logEntry);
         return ResponseEntity.ok(Map.of("message", "Log ingested"));
@@ -60,10 +65,10 @@ public class LogController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        String userId = getUserIdFromRequest();
+        List<String> userIds = getUserIdsFromRequest();
 
         // Build query criteria
-        Criteria criteria = Criteria.where("userId").is(userId);
+        Criteria criteria = Criteria.where("userId").in(userIds);
         if (level != null && !level.isEmpty()) {
             criteria = criteria.and("level").is(level);
         }
@@ -74,7 +79,7 @@ public class LogController {
         Query query = new Query(criteria);
         long total = mongoTemplate.count(query, LogEntry.class);
         
-        log.debug("User ID: {}, Level: {}, Keyword: {}", userId, level, keyword);
+        log.debug("User IDs: {}, Level: {}, Keyword: {}", userIds, level, keyword);
         log.debug("Total logs found in DB for this user: {}", total);
 
         query.with(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp")));
@@ -92,10 +97,12 @@ public class LogController {
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getLogById(@PathVariable String id) {
-        String userId = getUserIdFromRequest();
+        List<String> userIds = getUserIdsFromRequest();
         
-        return logRepository.findByIdAndUserId(id, userId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        java.util.Optional<LogEntry> logOpt = logRepository.findById(id);
+        if (logOpt.isPresent() && userIds.contains(logOpt.get().getUserId())) {
+            return ResponseEntity.ok(logOpt.get());
+        }
+        return ResponseEntity.notFound().build();
     }
 }
