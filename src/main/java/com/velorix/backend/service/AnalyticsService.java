@@ -22,11 +22,11 @@ public class AnalyticsService {
     @Autowired
     private MongoTemplate mongoTemplate;
 
-    public List<Map> getDailyMetrics(String userId, String endpointId, int days) {
+    public List<Map> getDailyMetrics(List<String> userIds, String endpointId, int days) {
         LocalDateTime startDate = LocalDateTime.now().minusDays(days);
         
-        // 1. MUST always match by userId first (IDOR prevention)
-        Criteria matchCriteria = Criteria.where("userId").is(userId).and("timestamp").gte(startDate);
+        // 1. Match by any of user's IDs (mongoId or email)
+        Criteria matchCriteria = Criteria.where("userId").in(userIds).and("timestamp").gte(startDate);
         
         // 2. Optionally filter by endpointId if provided
         if (endpointId != null && !endpointId.isEmpty()) {
@@ -70,9 +70,9 @@ public class AnalyticsService {
         return results.getMappedResults();
     }
 
-    public Map<String, Object> getSummary(String userId) {
+    public Map<String, Object> getSummary(List<String> userIds) {
         // Fetch endpoint stats
-        Query query = new Query(Criteria.where("userId").is(userId));
+        Query query = new Query(Criteria.where("userId").in(userIds));
         List<ApiEndpoint> endpoints = mongoTemplate.find(query, ApiEndpoint.class);
         
         long totalEndpoints = endpoints.size();
@@ -85,10 +85,10 @@ public class AnalyticsService {
                 .count();
         
         // Fetch total requests (logs count)
-        long totalRequests = mongoTemplate.count(new Query(Criteria.where("userId").is(userId)), "logs");
+        long totalRequests = mongoTemplate.count(new Query(Criteria.where("userId").in(userIds)), "logs");
         
         // Average response time from recent metrics (approximate by calling getDailyMetrics for 7 days)
-        List<Map> metrics = getDailyMetrics(userId, null, 7);
+        List<Map> metrics = getDailyMetrics(userIds, null, 7);
         double totalAvg = 0;
         int validDays = 0;
         for (Map m : metrics) {
@@ -99,7 +99,7 @@ public class AnalyticsService {
         }
         int averageResponseTime = validDays > 0 ? (int) Math.round(totalAvg / validDays) : 0;
         
-        double uptimePercentage = totalEndpoints > 0 ? ((double) upEndpoints / (double) totalEndpoints) * 100.0 : 100.0;
+        double uptimePercentage = totalEndpoints > 0 ? ((double) upEndpoints / (double) totalEndpoints) * 100.0 : 0.0;
         
         Map<String, Object> summary = new HashMap<>();
         summary.put("totalEndpoints", totalEndpoints);
@@ -108,7 +108,7 @@ public class AnalyticsService {
         summary.put("averageResponseTime", averageResponseTime);
         summary.put("uptimePercentage", String.format("%.2f", uptimePercentage));
         summary.put("totalRequests", totalRequests);
-        summary.put("slaStatus", uptimePercentage >= 99.0 ? "Healthy" : "At Risk");
+        summary.put("slaStatus", totalEndpoints == 0 ? "No Active Endpoints" : (uptimePercentage >= 99.0 ? "Healthy" : "At Risk"));
         
         return summary;
     }

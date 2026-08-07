@@ -61,6 +61,19 @@ public class ApiEndpointController {
                 .orElse(email);
     }
 
+    private List<String> getUserIdsFromRequest() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            throw new RuntimeException("User not authenticated");
+        }
+        String email = auth.getName();
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isPresent()) {
+            return List.of(userOpt.get().getId(), email);
+        }
+        return List.of(email);
+    }
+
     /**
      * GET /api/endpoints - Get all endpoints for logged-in user
      */
@@ -69,8 +82,8 @@ public class ApiEndpointController {
             @RequestParam(required = false) String tag,
             HttpServletRequest request) {
         try {
-            String userId = getUserIdFromRequest();
-            List<ApiEndpoint> endpoints = apiEndpointRepository.findByUserId(userId);
+            List<String> userIds = getUserIdsFromRequest();
+            List<ApiEndpoint> endpoints = apiEndpointRepository.findByUserIdIn(userIds);
             
             if (tag != null && !tag.trim().isEmpty()) {
                 endpoints = endpoints.stream()
@@ -78,7 +91,7 @@ public class ApiEndpointController {
                         .toList();
             }
             
-            log.info("Fetched {} endpoints for user: {}", endpoints.size(), userId);
+            log.info("Fetched {} endpoints for userIds: {}", endpoints.size(), userIds);
             return ResponseEntity.ok(endpoints);
         } catch (Exception e) {
             log.error("Error fetching endpoints: {}", e.getMessage());
@@ -147,9 +160,10 @@ public class ApiEndpointController {
                                             @Valid @RequestBody ApiEndpoint updated,
                                             HttpServletRequest request) {
         try {
+            List<String> userIds = getUserIdsFromRequest();
             String userId = getUserIdFromRequest();
 
-            Optional<ApiEndpoint> existingOpt = apiEndpointRepository.findByIdAndUserId(id, userId);
+            Optional<ApiEndpoint> existingOpt = apiEndpointRepository.findByIdAndUserIdIn(id, userIds);
             if (existingOpt.isEmpty()) {
                 return ResponseEntity.status(404).body(Map.of("error", "Endpoint not found or not authorized"));
             }
@@ -198,9 +212,10 @@ public class ApiEndpointController {
     public ResponseEntity<?> deleteEndpoint(@PathVariable String id,
                                             HttpServletRequest request) {
         try {
+            List<String> userIds = getUserIdsFromRequest();
             String userId = getUserIdFromRequest();
 
-            Optional<ApiEndpoint> existingOpt = apiEndpointRepository.findByIdAndUserId(id, userId);
+            Optional<ApiEndpoint> existingOpt = apiEndpointRepository.findByIdAndUserIdIn(id, userIds);
             if (existingOpt.isEmpty()) {
                 log.warn("Delete attempt: Endpoint {} not found or not authorized", id);
                 return ResponseEntity.status(404).body(Map.of("error", "Endpoint not found"));
