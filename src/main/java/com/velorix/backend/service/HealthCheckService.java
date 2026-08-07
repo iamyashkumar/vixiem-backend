@@ -42,6 +42,25 @@ public class HealthCheckService {
     @Autowired
     private SseNotificationService sseNotificationService;
 
+    @Scheduled(fixedDelay = 240000) // Every 4 minutes self-ping to prevent Render sleep mode
+    public void selfKeepAlivePing() {
+        try {
+            String backendUrl = System.getenv("RENDER_EXTERNAL_URL");
+            if (backendUrl == null || backendUrl.isEmpty()) {
+                backendUrl = "https://vixiem-backend.onrender.com";
+            }
+            URL url = new URI(backendUrl + "/health").toURL();
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            int code = conn.getResponseCode();
+            log.info("Self-keep-alive ping to {} status code: {}", url, code);
+        } catch (Exception e) {
+            log.debug("Self-keep-alive ping note: {}", e.getMessage());
+        }
+    }
+
     @Scheduled(fixedDelay = 60000) // Every 60 seconds
     public void checkAllEndpoints() {
         List<ApiEndpoint> endpoints = apiEndpointRepository.findAll();
