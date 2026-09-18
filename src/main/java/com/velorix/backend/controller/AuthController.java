@@ -91,10 +91,14 @@ public class AuthController {
         if (tokenToUse == null || tokenToUse.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        RefreshTokenRequest request = new RefreshTokenRequest();
-        request.setRefresh_token(tokenToUse);
-        AuthResponse response = authService.refresh(request);
-        return buildCookieResponse(response, HttpStatus.OK);
+        try {
+            RefreshTokenRequest request = new RefreshTokenRequest();
+            request.setRefresh_token(tokenToUse);
+            AuthResponse response = authService.refresh(request);
+            return buildCookieResponse(response, HttpStatus.OK);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
     }
 
     // ✅ Logout endpoint
@@ -211,13 +215,13 @@ public class AuthController {
             if (response.getAccessToken() != null) {
                 HttpCookie accessCookie = cookieUtil.createAccessTokenCookie(response.getAccessToken());
                 builder.header(HttpHeaders.SET_COOKIE, accessCookie.toString());
-                response.setAccessToken(null);
+                // Keep accessToken in body so SPA clients can store it in localStorage / Bearer headers
             }
 
             if (response.getRefreshToken() != null) {
                 HttpCookie refreshCookie = cookieUtil.createRefreshTokenCookie(response.getRefreshToken());
                 builder.header(HttpHeaders.SET_COOKIE, refreshCookie.toString());
-                response.setRefreshToken(null);
+                // Keep refreshToken in body so SPA clients can perform token refreshes
             }
         }
 
