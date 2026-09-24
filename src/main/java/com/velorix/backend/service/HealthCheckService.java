@@ -14,6 +14,10 @@ import java.net.URL;
 import java.net.URI;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -42,6 +46,12 @@ public class HealthCheckService {
     @Autowired
     private SseNotificationService sseNotificationService;
 
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_2)
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .connectTimeout(Duration.ofSeconds(4))
+            .build();
+
     @Scheduled(fixedDelay = 240000) // Every 4 minutes self-ping to prevent Render sleep mode
     public void selfKeepAlivePing() {
         try {
@@ -49,13 +59,14 @@ public class HealthCheckService {
             if (backendUrl == null || backendUrl.isEmpty()) {
                 backendUrl = "https://vixiem-backend.onrender.com";
             }
-            URL url = new URI(backendUrl + "/health").toURL();
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
-            int code = conn.getResponseCode();
-            log.info("Self-keep-alive ping to {} status code: {}", url, code);
+            HttpRequest pingReq = HttpRequest.newBuilder()
+                    .uri(URI.create(backendUrl + "/health"))
+                    .timeout(Duration.ofSeconds(5))
+                    .header("User-Agent", "Vixiem-KeepAlive/2.0")
+                    .GET()
+                    .build();
+            HttpResponse<Void> resp = httpClient.send(pingReq, HttpResponse.BodyHandlers.discarding());
+            log.info("Self-keep-alive ping to {} status code: {}", backendUrl + "/health", resp.statusCode());
         } catch (Exception e) {
             log.debug("Self-keep-alive ping note: {}", e.getMessage());
         }
@@ -152,20 +163,33 @@ public class HealthCheckService {
     public boolean checkEndpoint(String urlString) {
         try {
             URI uri = validatePublicHttpUrl(urlString);
-            URL url = uri.toURL();
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
-            connection.setInstanceFollowRedirects(false);
-            connection.connect();
 
-            int responseCode = connection.getResponseCode();
-            connection.disconnect();
+            // 1. High-speed HEAD request (Zero response body transfer, Keep-Alive connection reuse)
+            HttpRequest headRequest = HttpRequest.newBuilder()
+                    .uri(uri)
+                    .timeout(Duration.ofSeconds(5))
+                    .header("User-Agent", "Vixiem-HealthCheck/2.0 (High-Speed Edge Monitor)")
+                    .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                    .build();
 
-            return responseCode >= 200 && responseCode < 400;
+            HttpResponse<Void> response = httpClient.send(headRequest, HttpResponse.BodyHandlers.discarding());
+            int code = response.statusCode();
+
+            // 2. Fallback to GET if server does not support HEAD (405 Method Not Allowed or 501 Not Implemented)
+            if (code == 405 || code == 501) {
+                HttpRequest getRequest = HttpRequest.newBuilder()
+                        .uri(uri)
+                        .timeout(Duration.ofSeconds(5))
+                        .header("User-Agent", "Vixiem-HealthCheck/2.0 (High-Speed Edge Monitor)")
+                        .GET()
+                        .build();
+                response = httpClient.send(getRequest, HttpResponse.BodyHandlers.discarding());
+                code = response.statusCode();
+            }
+
+            return code >= 200 && code < 400;
         } catch (Exception e) {
-            log.error("Error checking endpoint: {}", e.getMessage());
+            log.error("Error checking endpoint {}: {}", urlString, e.getMessage());
             return false;
         }
     }
