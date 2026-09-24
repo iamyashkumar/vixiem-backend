@@ -119,9 +119,9 @@ public class ApiEndpointController {
 
             // Instant initial ping check
             try {
-                long startTime = System.currentTimeMillis();
-                boolean isUp = healthCheckService.checkEndpoint(saved.getUrl());
-                long responseTime = System.currentTimeMillis() - startTime;
+                HealthCheckService.CheckResult checkRes = healthCheckService.checkEndpointWithLatency(saved.getUrl());
+                boolean isUp = checkRes.isUp();
+                long responseTime = checkRes.getLatencyMs();
 
                 saved.setLastStatus(isUp);
                 saved.setStatusChangedAt(LocalDateTime.now());
