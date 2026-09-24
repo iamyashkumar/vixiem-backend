@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import com.velorix.backend.model.ApiEndpoint;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -70,7 +71,28 @@ public class AnalyticsService {
         return results.getMappedResults();
     }
 
+    private final Map<String, CachedSummary> summaryCache = new ConcurrentHashMap<>();
+
+    private static class CachedSummary {
+        final Map<String, Object> data;
+        final long expiryTime;
+
+        CachedSummary(Map<String, Object> data, long ttlMillis) {
+            this.data = data;
+            this.expiryTime = System.currentTimeMillis() + ttlMillis;
+        }
+
+        boolean isExpired() {
+            return System.currentTimeMillis() > expiryTime;
+        }
+    }
+
     public Map<String, Object> getSummary(List<String> userIds) {
+        String cacheKey = (userIds != null && !userIds.isEmpty()) ? String.join(",", userIds) : "default";
+        CachedSummary cached = summaryCache.get(cacheKey);
+        if (cached != null && !cached.isExpired()) {
+            return cached.data;
+        }
         // Fetch endpoint stats
         Query query = new Query(Criteria.where("userId").in(userIds));
         List<ApiEndpoint> endpoints = mongoTemplate.find(query, ApiEndpoint.class);
@@ -110,6 +132,7 @@ public class AnalyticsService {
         summary.put("totalRequests", totalRequests);
         summary.put("slaStatus", totalEndpoints == 0 ? "No Active Endpoints" : (uptimePercentage >= 99.0 ? "Healthy" : "At Risk"));
         
+        summaryCache.put(cacheKey, new CachedSummary(summary, 15000));
         return summary;
     }
 }
