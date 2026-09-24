@@ -109,17 +109,31 @@ public class AnalyticsService {
         // Fetch total requests (logs count)
         long totalRequests = mongoTemplate.count(new Query(Criteria.where("userId").in(userIds)), "logs");
         
-        // Average response time from recent metrics (approximate by calling getDailyMetrics for 7 days)
-        List<Map> metrics = getDailyMetrics(userIds, null, 7);
-        double totalAvg = 0;
-        int validDays = 0;
-        for (Map m : metrics) {
-            if (m.get("avgResponseTime") != null) {
-                totalAvg += ((Number) m.get("avgResponseTime")).doubleValue();
-                validDays++;
+        // Real-time live latency: average of the most recent 30 checks for instant responsiveness
+        Query recentQuery = new Query(Criteria.where("userId").in(userIds).and("responseTimeMs").ne(null))
+                .with(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "timestamp"))
+                .limit(30);
+        List<LogEntry> recentLogs = mongoTemplate.find(recentQuery, LogEntry.class);
+        int averageResponseTime = 0;
+        if (!recentLogs.isEmpty()) {
+            long sum = 0;
+            for (LogEntry l : recentLogs) {
+                sum += l.getResponseTimeMs();
             }
+            averageResponseTime = (int) Math.round((double) sum / recentLogs.size());
+        } else {
+            // Fallback to 7-day daily metrics if no recent logs found
+            List<Map> metrics = getDailyMetrics(userIds, null, 7);
+            double totalAvg = 0;
+            int validDays = 0;
+            for (Map m : metrics) {
+                if (m.get("avgResponseTime") != null) {
+                    totalAvg += ((Number) m.get("avgResponseTime")).doubleValue();
+                    validDays++;
+                }
+            }
+            averageResponseTime = validDays > 0 ? (int) Math.round(totalAvg / validDays) : 0;
         }
-        int averageResponseTime = validDays > 0 ? (int) Math.round(totalAvg / validDays) : 0;
         
         double uptimePercentage = totalEndpoints > 0 ? ((double) upEndpoints / (double) totalEndpoints) * 100.0 : 0.0;
         
