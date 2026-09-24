@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import com.velorix.backend.model.ApiEndpoint;
+import com.velorix.backend.model.LogEntry;
 import org.springframework.data.mongodb.core.query.Query;
 
 @Slf4j
