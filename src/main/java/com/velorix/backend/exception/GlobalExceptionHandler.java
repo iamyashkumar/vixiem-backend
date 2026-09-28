@@ -7,12 +7,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -122,9 +124,16 @@ public class GlobalExceptionHandler {
         Exception ex,
         HttpServletRequest request) {
         
+        log.error("Unhandled exception on [{} {}]: {}", request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
+        
+        String userMessage = "An unexpected error occurred. Please try again later.";
+        if (ex.getMessage() != null && !ex.getMessage().isBlank()) {
+            userMessage = ex.getMessage();
+        }
+
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .status(500)
-                .message("An unexpected error occurred")
+                .message(userMessage)
                 .timestamp(System.currentTimeMillis())
                 .path(request.getRequestURI())
                 .error("INTERNAL_SERVER_ERROR")

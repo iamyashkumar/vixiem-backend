@@ -72,9 +72,34 @@ public class AlertNotificationService {
     /**
      * Send instant test alert for user verification
      */
-    public boolean sendTestAlert(String targetEmail, String userName) {
+    public static class DispatchResult {
+        private final boolean success;
+        private final String message;
+        private final String provider;
+        private final int statusCode;
+
+        public DispatchResult(boolean success, String message, String provider, int statusCode) {
+            this.success = success;
+            this.message = message;
+            this.provider = provider;
+            this.statusCode = statusCode;
+        }
+
+        public boolean isSuccess() { return success; }
+        public String getMessage() { return message; }
+        public String getProvider() { return provider; }
+        public int getStatusCode() { return statusCode; }
+    }
+
+    @Value("${resend.from.email:Vixiem <onboarding@resend.dev>}")
+    private String resendFromEmail;
+
+    /**
+     * Send instant test alert for user verification with detailed diagnostics
+     */
+    public DispatchResult sendTestAlert(String targetEmail, String userName) {
         if (targetEmail == null || !targetEmail.contains("@")) {
-            return false;
+            return new DispatchResult(false, "Invalid destination email address.", "NONE", 400);
         }
 
         String subject = "🔔 Vixiem Real-Time Alert Test: Delivery Confirmed";
@@ -114,11 +139,56 @@ public class AlertNotificationService {
             targetEmail, timestampStr, frontendUrl
         );
 
-        if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend")) {
-            boolean sent = sendViaResend(targetEmail, subject, htmlBody);
-            if (sent) return true;
+        boolean hasResendKey = resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend");
+        String resendDiagnostic = null;
+
+        if (hasResendKey) {
+            try {
+                String sender = resendFromEmail != null && !resendFromEmail.trim().isEmpty() ? resendFromEmail.trim() : "Vixiem <onboarding@resend.dev>";
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("from", sender);
+                payload.put("to", List.of(targetEmail));
+                payload.put("subject", subject);
+                payload.put("html", htmlBody);
+
+                String jsonPayload = objectMapper.writeValueAsString(payload);
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create("https://api.resend.com/emails"))
+                        .header("Authorization", "Bearer " + resendApiKey.trim())
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                        .build();
+
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    log.info("Test alert successfully sent via Resend API to {}", targetEmail);
+                    return new DispatchResult(true, "Test alert email successfully dispatched to " + targetEmail, "RESEND", response.statusCode());
+                } else {
+                    String errorText = response.body();
+                    try {
+                        com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(response.body());
+                        if (root.has("message")) {
+                            errorText = root.get("message").asText();
+                        }
+                    } catch (Exception ignored) {}
+                    log.error("Resend API error (status {}): {}", response.statusCode(), errorText);
+                    
+                    if (response.statusCode() == 403) {
+                        resendDiagnostic = "Resend Sandbox Restriction: " + errorText + " Tip: To send across any email domain, verify a custom domain at resend.com/domains or send the test alert to your registered Resend email.";
+                    } else if (response.statusCode() == 401) {
+                        resendDiagnostic = "Resend API Key is unauthorized or invalid. Please verify RESEND_API_KEY in Render.";
+                    } else {
+                        resendDiagnostic = "Resend API error (" + response.statusCode() + "): " + errorText;
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Resend alert delivery exception for {}: {}", targetEmail, e.getMessage());
+                resendDiagnostic = "Resend connection error: " + e.getMessage();
+            }
         }
 
+        // Try SMTP JavaMailSender fallback
         if (mailSender != null) {
             try {
                 SimpleMailMessage message = new SimpleMailMessage();
@@ -126,13 +196,23 @@ public class AlertNotificationService {
                 message.setSubject(subject);
                 message.setText("Vixiem Alert Notification Test\n\nAlert delivery confirmed for " + targetEmail + " at " + timestampStr);
                 mailSender.send(message);
-                return true;
+                log.info("Test alert sent successfully via JavaMailSender to {}", targetEmail);
+                return new DispatchResult(true, "Test alert email successfully dispatched via SMTP to " + targetEmail, "SMTP", 200);
             } catch (Exception e) {
                 log.error("Test alert JavaMailSender failed: {}", e.getMessage());
             }
         }
 
-        return false;
+        String finalMsg;
+        if (resendDiagnostic != null) {
+            finalMsg = resendDiagnostic;
+        } else if (!hasResendKey) {
+            finalMsg = "Email service not configured. Please set RESEND_API_KEY or MAIL_USERNAME/MAIL_PASSWORD in Render environment variables.";
+        } else {
+            finalMsg = "Failed to dispatch test alert email. Please check mail provider settings.";
+        }
+
+        return new DispatchResult(false, finalMsg, hasResendKey ? "RESEND" : "NONE", 400);
     }
 
     private void sendEmailNotification(ApiEndpoint endpoint, boolean isDown, String errorMessage) {
@@ -145,6 +225,9 @@ public class AlertNotificationService {
                 targetEmail = userId;
             } else if (userId != null) {
                 Optional<User> userOpt = userRepository.findById(userId);
+                if (userOpt.isEmpty()) {
+                    userOpt = userRepository.findByEmail(userId);
+                }
                 if (userOpt.isPresent()) {
                     targetEmail = userOpt.get().getEmail();
                 }
@@ -193,7 +276,8 @@ public class AlertNotificationService {
     private boolean sendViaResend(String toEmail, String subject, String htmlBody) {
         try {
             Map<String, Object> payload = new HashMap<>();
-            payload.put("from", "Vixiem <onboarding@resend.dev>");
+            String sender = resendFromEmail != null && !resendFromEmail.trim().isEmpty() ? resendFromEmail.trim() : "Vixiem <onboarding@resend.dev>";
+            payload.put("from", sender);
             payload.put("to", List.of(toEmail));
             payload.put("subject", subject);
             payload.put("html", htmlBody);

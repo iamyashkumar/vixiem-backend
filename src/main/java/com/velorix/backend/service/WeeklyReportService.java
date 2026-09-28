@@ -53,6 +53,28 @@ public class WeeklyReportService {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
+    public static class DispatchResult {
+        private final boolean success;
+        private final String message;
+        private final String provider;
+        private final int statusCode;
+
+        public DispatchResult(boolean success, String message, String provider, int statusCode) {
+            this.success = success;
+            this.message = message;
+            this.provider = provider;
+            this.statusCode = statusCode;
+        }
+
+        public boolean isSuccess() { return success; }
+        public String getMessage() { return message; }
+        public String getProvider() { return provider; }
+        public int getStatusCode() { return statusCode; }
+    }
+
+    @Value("${resend.from.email:Vixiem <onboarding@resend.dev>}")
+    private String resendFromEmail;
+
     /**
      * Automated weekly dispatch: Every Monday at 9:00 AM UTC
      */
@@ -64,8 +86,8 @@ public class WeeklyReportService {
         for (User user : users) {
             try {
                 if (user.getEmail() != null && user.getEmail().contains("@")) {
-                    boolean success = sendWeeklyReportForUser(user);
-                    if (success) sentCount++;
+                    DispatchResult result = sendWeeklyReportForUser(user, null);
+                    if (result.isSuccess()) sentCount++;
                 }
             } catch (Exception e) {
                 log.error("Failed to send weekly report to {}: {}", user.getEmail(), e.getMessage());
@@ -75,18 +97,28 @@ public class WeeklyReportService {
     }
 
     /**
+     * Overload for default user email
+     */
+    public DispatchResult sendWeeklyReportForUser(User user) {
+        return sendWeeklyReportForUser(user, null);
+    }
+
+    /**
      * Send weekly report for a specific user (on-demand or automated)
      */
-    public boolean sendWeeklyReportForUser(User user) {
-        String targetEmail = user.getEmail();
+    public DispatchResult sendWeeklyReportForUser(User user, String overrideEmail) {
+        String targetEmail = (overrideEmail != null && !overrideEmail.trim().isEmpty()) 
+                ? overrideEmail.trim() 
+                : user.getEmail();
+
         if (targetEmail == null || !targetEmail.contains("@")) {
             log.warn("Invalid email for weekly report: {}", targetEmail);
-            return false;
+            return new DispatchResult(false, "Invalid destination email address.", "NONE", 400);
         }
 
         List<String> userIds = new ArrayList<>();
         if (user.getId() != null) userIds.add(user.getId());
-        userIds.add(user.getEmail());
+        if (user.getEmail() != null) userIds.add(user.getEmail());
 
         List<ApiEndpoint> endpoints = apiEndpointRepository.findByUserIdIn(userIds);
         if (endpoints.isEmpty() && user.getId() != null) {
@@ -107,7 +139,7 @@ public class WeeklyReportService {
                 .filter(l -> l.getResponseTimeMs() != null && l.getResponseTimeMs() > 0)
                 .mapToLong(LogEntry::getResponseTimeMs)
                 .average();
-        double avgLatency = avgLatOpt.orElse(16.5);
+        double avgLatency = avgLatOpt.orElse(0.0);
 
         // Per-endpoint metrics
         List<Map<String, Object>> endpointSummaries = new ArrayList<>();
@@ -137,16 +169,55 @@ public class WeeklyReportService {
         String htmlBody = buildWeeklyReportHtml(displayName, totalEndpoints, fleetUptime, avgLatency, totalChecks, totalErrors, endpointSummaries);
         String plainText = buildWeeklyReportPlainText(displayName, totalEndpoints, fleetUptime, avgLatency, totalChecks, totalErrors, endpointSummaries);
 
-        // 1. Try Resend API (HTTPS port 443 - works on Render)
-        if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend")) {
-            boolean sent = sendViaResend(targetEmail, subject, htmlBody);
-            if (sent) {
-                log.info("Weekly telemetry digest sent via Resend API to {}", targetEmail);
-                return true;
+        boolean hasResendKey = resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend");
+        String resendDiagnostic = null;
+
+        if (hasResendKey) {
+            try {
+                String sender = resendFromEmail != null && !resendFromEmail.trim().isEmpty() ? resendFromEmail.trim() : "Vixiem <onboarding@resend.dev>";
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("from", sender);
+                payload.put("to", List.of(targetEmail));
+                payload.put("subject", subject);
+                payload.put("html", htmlBody);
+
+                String jsonPayload = objectMapper.writeValueAsString(payload);
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create("https://api.resend.com/emails"))
+                        .header("Authorization", "Bearer " + resendApiKey.trim())
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                        .build();
+
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    log.info("Weekly telemetry digest sent via Resend API to {}", targetEmail);
+                    return new DispatchResult(true, "Weekly telemetry digest successfully sent to " + targetEmail, "RESEND", response.statusCode());
+                } else {
+                    String errorText = response.body();
+                    try {
+                        com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(response.body());
+                        if (root.has("message")) {
+                            errorText = root.get("message").asText();
+                        }
+                    } catch (Exception ignored) {}
+                    log.error("Resend API weekly report error (status {}): {}", response.statusCode(), errorText);
+                    if (response.statusCode() == 403) {
+                        resendDiagnostic = "Resend Sandbox Restriction: " + errorText + " Tip: To send across any email domain, verify a custom domain at resend.com/domains or send the test alert to your registered Resend email.";
+                    } else if (response.statusCode() == 401) {
+                        resendDiagnostic = "Resend API Key is unauthorized or invalid. Please check RESEND_API_KEY.";
+                    } else {
+                        resendDiagnostic = "Resend API error (" + response.statusCode() + "): " + errorText;
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Resend delivery exception for weekly report to {}: {}", targetEmail, e.getMessage());
+                resendDiagnostic = "Resend connection error: " + e.getMessage();
             }
         }
 
-        // 2. Fallback to JavaMailSender
+        // Fallback to JavaMailSender
         if (mailSender != null) {
             try {
                 SimpleMailMessage message = new SimpleMailMessage();
@@ -155,45 +226,22 @@ public class WeeklyReportService {
                 message.setText(plainText);
                 mailSender.send(message);
                 log.info("Weekly telemetry digest sent via JavaMailSender to {}", targetEmail);
-                return true;
+                return new DispatchResult(true, "Weekly telemetry digest sent via SMTP to " + targetEmail, "SMTP", 200);
             } catch (Exception e) {
                 log.error("Failed to send weekly report via JavaMailSender to {}: {}", targetEmail, e.getMessage());
             }
         }
 
-        log.warn("Neither Resend nor JavaMailSender could dispatch weekly report to {}", targetEmail);
-        return false;
-    }
-
-    private boolean sendViaResend(String toEmail, String subject, String htmlBody) {
-        try {
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("from", "Vixiem <onboarding@resend.dev>");
-            payload.put("to", List.of(toEmail));
-            payload.put("subject", subject);
-            payload.put("html", htmlBody);
-
-            String jsonPayload = objectMapper.writeValueAsString(payload);
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.resend.com/emails"))
-                    .header("Authorization", "Bearer " + resendApiKey.trim())
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                log.info("Resend API weekly report dispatched. Status: {}", response.statusCode());
-                return true;
-            } else {
-                log.error("Resend API error (status {}): {}", response.statusCode(), response.body());
-                return false;
-            }
-        } catch (Exception e) {
-            log.error("Resend delivery exception for weekly report to {}: {}", toEmail, e.getMessage());
-            return false;
+        String finalMsg;
+        if (resendDiagnostic != null) {
+            finalMsg = resendDiagnostic;
+        } else if (!hasResendKey) {
+            finalMsg = "Email service not configured. Please set RESEND_API_KEY in Render environment variables.";
+        } else {
+            finalMsg = "Failed to dispatch weekly report. Please check mail provider credentials.";
         }
+
+        return new DispatchResult(false, finalMsg, hasResendKey ? "RESEND" : "NONE", 400);
     }
 
     private String buildWeeklyReportHtml(String username, int totalEndpoints, double uptime, double avgLatency, long totalChecks, long totalErrors, List<Map<String, Object>> endpoints) {

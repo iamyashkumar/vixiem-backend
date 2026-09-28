@@ -37,7 +37,12 @@ public class ApiEndpoint {
     @JsonProperty("isActive")
     private boolean isActive;
 
-    private boolean alertsEnabled;
+    @Builder.Default
+    private Boolean alertsEnabled = true;
+
+    public boolean isAlertsEnabled() {
+        return alertsEnabled == null || alertsEnabled;
+    }
     private String discordWebhookUrl;
     private String alertEmail;
     private Boolean lastStatus; // true = UP, false = DOWN, null = UNKNOWN

@@ -82,7 +82,7 @@ public class AnalyticsController {
     }
 
     @PostMapping("/send-weekly-report")
-    public ResponseEntity<?> sendWeeklyReport() {
+    public ResponseEntity<?> sendWeeklyReport(@RequestBody(required = false) Map<String, String> body) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth == null || !auth.isAuthenticated()) {
@@ -95,52 +95,70 @@ public class AnalyticsController {
             }
 
             com.velorix.backend.model.User user = userOpt.get();
-            boolean dispatched = weeklyReportService.sendWeeklyReportForUser(user);
+            String customEmail = (body != null && body.get("email") != null && !body.get("email").trim().isEmpty())
+                    ? body.get("email").trim()
+                    : null;
 
-            if (dispatched) {
+            com.velorix.backend.service.WeeklyReportService.DispatchResult result = weeklyReportService.sendWeeklyReportForUser(user, customEmail);
+
+            if (result.isSuccess()) {
                 return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "message", "Weekly telemetry digest successfully sent to " + email
+                    "message", result.getMessage(),
+                    "provider", result.getProvider()
                 ));
             } else {
-                return ResponseEntity.status(500).body(Map.of(
+                return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(Map.of(
                     "success", false,
-                    "message", "Failed to dispatch weekly report. Please check mail provider credentials."
+                    "message", result.getMessage(),
+                    "provider", result.getProvider()
                 ));
             }
         } catch (Exception e) {
-            log.error("Error triggering weekly report: {}", e.getMessage());
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+            log.error("Error triggering weekly report: {}", e.getMessage(), e);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(Map.of(
+                "success", false,
+                "message", e.getMessage() != null ? e.getMessage() : "Error triggering weekly report"
+            ));
         }
     }
 
     @PostMapping("/test-alert")
-    public ResponseEntity<?> sendTestAlert() {
+    public ResponseEntity<?> sendTestAlert(@RequestBody(required = false) Map<String, String> body) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth == null || !auth.isAuthenticated()) {
                 return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
             }
-            String email = auth.getName();
-            Optional<com.velorix.backend.model.User> userOpt = userRepository.findByEmail(email);
-            String username = userOpt.map(com.velorix.backend.model.User::getUsername).orElse(email.split("@")[0]);
+            String authEmail = auth.getName();
+            String targetEmail = (body != null && body.get("email") != null && !body.get("email").trim().isEmpty())
+                    ? body.get("email").trim()
+                    : authEmail;
 
-            boolean dispatched = alertNotificationService.sendTestAlert(email, username);
+            Optional<com.velorix.backend.model.User> userOpt = userRepository.findByEmail(authEmail);
+            String username = userOpt.map(com.velorix.backend.model.User::getUsername).orElse(targetEmail.split("@")[0]);
 
-            if (dispatched) {
+            com.velorix.backend.service.AlertNotificationService.DispatchResult result = alertNotificationService.sendTestAlert(targetEmail, username);
+
+            if (result.isSuccess()) {
                 return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "message", "Test alert email successfully dispatched to " + email
+                    "message", result.getMessage(),
+                    "provider", result.getProvider()
                 ));
             } else {
-                return ResponseEntity.status(500).body(Map.of(
+                return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(Map.of(
                     "success", false,
-                    "message", "Failed to send test alert. Please verify mail provider configuration."
+                    "message", result.getMessage(),
+                    "provider", result.getProvider()
                 ));
             }
         } catch (Exception e) {
-            log.error("Error triggering test alert: {}", e.getMessage());
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+            log.error("Error triggering test alert: {}", e.getMessage(), e);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(Map.of(
+                "success", false,
+                "message", e.getMessage() != null ? e.getMessage() : "Error triggering test alert"
+            ));
         }
     }
 }
