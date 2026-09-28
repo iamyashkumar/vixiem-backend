@@ -44,11 +44,15 @@ public class EmailVerificationService {
     @Value("${resend.api.key:}")
     private String resendApiKey;
 
+    @Value("${resend.from.email:Vixiem <onboarding@resend.dev>}")
+    private String resendFromEmail;
+
+    @Value("${frontend.url:https://vixiem.vercel.app}")
+    private String frontendUrl;
+
     @Value("${spring.mail.username:}")
     private String mailUsername;
 
-    @Value("${frontend.url:http://localhost:5173}")
-    private String frontendUrl;
 
     @Async
     public void sendVerificationEmail(String email) {
@@ -148,11 +152,25 @@ public class EmailVerificationService {
                 verificationLink, verificationLink, verificationLink
             );
 
+            String sender = resendFromEmail != null && !resendFromEmail.trim().isEmpty() ? resendFromEmail.trim() : "Vixiem <onboarding@resend.dev>";
+            String plainText = "Welcome to Vixiem!\n\n" +
+                    "Please verify your email address by visiting this link:\n" +
+                    verificationLink + "\n\n" +
+                    "If you did not register for Vixiem, you can safely ignore this email.\n\n" +
+                    "Vixiem Cloud Observability";
+
             Map<String, Object> payload = new HashMap<>();
-            payload.put("from", "Vixiem <onboarding@resend.dev>");
+            payload.put("from", sender);
             payload.put("to", List.of(toEmail));
-            payload.put("subject", "Verify your Vixiem Email");
+            payload.put("subject", "[Vixiem] Verify your email address");
             payload.put("html", htmlBody);
+            payload.put("text", plainText);
+            payload.put("reply_to", "support@vixiem.com");
+
+            Map<String, String> headers = new LinkedHashMap<>();
+            headers.put("X-Auto-Response-Suppress", "All");
+            headers.put("X-Entity-Ref-ID", UUID.randomUUID().toString());
+            payload.put("headers", headers);
 
             String jsonPayload = objectMapper.writeValueAsString(payload);
 

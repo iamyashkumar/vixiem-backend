@@ -165,7 +165,7 @@ public class WeeklyReportService {
                 ? "@" + user.getUsername() 
                 : targetEmail.split("@")[0];
 
-        String subject = String.format(Locale.US, "📊 Vixiem Weekly Digest: %.1f%% Uptime & API Performance Report", fleetUptime);
+        String subject = String.format(Locale.US, "[Vixiem Digest] Weekly API Telemetry: %.1f%% Fleet Uptime", fleetUptime);
         String htmlBody = buildWeeklyReportHtml(displayName, totalEndpoints, fleetUptime, avgLatency, totalChecks, totalErrors, endpointSummaries);
         String plainText = buildWeeklyReportPlainText(displayName, totalEndpoints, fleetUptime, avgLatency, totalChecks, totalErrors, endpointSummaries);
 
@@ -180,6 +180,16 @@ public class WeeklyReportService {
                 payload.put("to", List.of(targetEmail));
                 payload.put("subject", subject);
                 payload.put("html", htmlBody);
+                payload.put("text", plainText);
+                payload.put("reply_to", "support@vixiem.com");
+
+                Map<String, String> headers = new LinkedHashMap<>();
+                headers.put("X-Auto-Response-Suppress", "All");
+                headers.put("X-Entity-Ref-ID", UUID.randomUUID().toString());
+                headers.put("List-Unsubscribe", "<" + frontendUrl + "/dashboard/settings>");
+                headers.put("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+                headers.put("Feedback-ID", "vixiem-weekly:render:transactional");
+                payload.put("headers", headers);
 
                 String jsonPayload = objectMapper.writeValueAsString(payload);
 

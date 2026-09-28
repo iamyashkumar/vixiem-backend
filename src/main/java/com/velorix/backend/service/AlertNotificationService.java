@@ -102,7 +102,7 @@ public class AlertNotificationService {
             return new DispatchResult(false, "Invalid destination email address.", "NONE", 400);
         }
 
-        String subject = "🔔 Vixiem Real-Time Alert Test: Delivery Confirmed";
+        String subject = "[Vixiem Alert] Test Notification: Delivery Confirmed";
         String timestampStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 
         String htmlBody = String.format(
@@ -145,11 +145,27 @@ public class AlertNotificationService {
         if (hasResendKey) {
             try {
                 String sender = resendFromEmail != null && !resendFromEmail.trim().isEmpty() ? resendFromEmail.trim() : "Vixiem <onboarding@resend.dev>";
+                String plainText = "Vixiem Alert System Notification\n\n" +
+                        "Alert delivery verified for " + targetEmail + " at " + timestampStr + ".\n" +
+                        "Your endpoint monitoring notifications are operational.\n\n" +
+                        "Open dashboard: " + frontendUrl + "/dashboard\n\n" +
+                        "Vixiem Cloud Observability • Manage alert preferences: " + frontendUrl + "/dashboard/settings";
+
                 Map<String, Object> payload = new HashMap<>();
                 payload.put("from", sender);
                 payload.put("to", List.of(targetEmail));
                 payload.put("subject", subject);
                 payload.put("html", htmlBody);
+                payload.put("text", plainText);
+                payload.put("reply_to", "support@vixiem.com");
+
+                Map<String, String> headers = new LinkedHashMap<>();
+                headers.put("X-Auto-Response-Suppress", "All");
+                headers.put("X-Entity-Ref-ID", UUID.randomUUID().toString());
+                headers.put("List-Unsubscribe", "<" + frontendUrl + "/dashboard/settings>");
+                headers.put("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+                headers.put("Feedback-ID", "vixiem-alerts:render:transactional");
+                payload.put("headers", headers);
 
                 String jsonPayload = objectMapper.writeValueAsString(payload);
 
@@ -241,15 +257,15 @@ public class AlertNotificationService {
 
         String timestampStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         String subject = isDown 
-                ? "🚨 URGENT: " + endpoint.getName() + " is DOWN" 
-                : "✅ RECOVERY: " + endpoint.getName() + " is back UP";
+                ? "[Vixiem Alert] Endpoint Incident: " + endpoint.getName() + " is unreachable" 
+                : "[Vixiem Alert] Service Restored: " + endpoint.getName() + " is back online";
 
         String htmlBody = buildAlertHtml(endpoint, isDown, errorMessage, timestampStr);
         String plainText = buildAlertPlainText(endpoint, isDown, errorMessage, timestampStr);
 
         // 1. Try Resend API first (works on Render free tier over HTTPS 443)
         if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend")) {
-            boolean sent = sendViaResend(targetEmail, subject, htmlBody);
+            boolean sent = sendViaResend(targetEmail, subject, htmlBody, plainText);
             if (sent) {
                 log.info("Email alert successfully sent via Resend API to {} for endpoint '{}'", targetEmail, endpoint.getName());
                 return;
@@ -273,7 +289,7 @@ public class AlertNotificationService {
         }
     }
 
-    private boolean sendViaResend(String toEmail, String subject, String htmlBody) {
+    private boolean sendViaResend(String toEmail, String subject, String htmlBody, String plainText) {
         try {
             Map<String, Object> payload = new HashMap<>();
             String sender = resendFromEmail != null && !resendFromEmail.trim().isEmpty() ? resendFromEmail.trim() : "Vixiem <onboarding@resend.dev>";
@@ -281,6 +297,18 @@ public class AlertNotificationService {
             payload.put("to", List.of(toEmail));
             payload.put("subject", subject);
             payload.put("html", htmlBody);
+            if (plainText != null && !plainText.isBlank()) {
+                payload.put("text", plainText);
+            }
+            payload.put("reply_to", "support@vixiem.com");
+
+            Map<String, String> headers = new LinkedHashMap<>();
+            headers.put("X-Auto-Response-Suppress", "All");
+            headers.put("X-Entity-Ref-ID", UUID.randomUUID().toString());
+            headers.put("List-Unsubscribe", "<" + frontendUrl + "/dashboard/settings>");
+            headers.put("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+            headers.put("Feedback-ID", "vixiem-alerts:render:transactional");
+            payload.put("headers", headers);
 
             String jsonPayload = objectMapper.writeValueAsString(payload);
 
