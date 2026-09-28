@@ -28,6 +28,12 @@ public class AnalyticsController {
     @Autowired
     private ApiEndpointRepository apiEndpointRepository;
 
+    @Autowired
+    private com.velorix.backend.service.WeeklyReportService weeklyReportService;
+
+    @Autowired
+    private com.velorix.backend.service.AlertNotificationService alertNotificationService;
+
     private List<String> getUserIdsFromRequest() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
@@ -71,6 +77,69 @@ public class AnalyticsController {
             return ResponseEntity.ok(summary);
         } catch (Exception e) {
             log.error("Error fetching analytics summary: {}", e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/send-weekly-report")
+    public ResponseEntity<?> sendWeeklyReport() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+            }
+            String email = auth.getName();
+            Optional<com.velorix.backend.model.User> userOpt = userRepository.findByEmail(email);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+            }
+
+            com.velorix.backend.model.User user = userOpt.get();
+            boolean dispatched = weeklyReportService.sendWeeklyReportForUser(user);
+
+            if (dispatched) {
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Weekly telemetry digest successfully sent to " + email
+                ));
+            } else {
+                return ResponseEntity.status(500).body(Map.of(
+                    "success", false,
+                    "message", "Failed to dispatch weekly report. Please check mail provider credentials."
+                ));
+            }
+        } catch (Exception e) {
+            log.error("Error triggering weekly report: {}", e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/test-alert")
+    public ResponseEntity<?> sendTestAlert() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+            }
+            String email = auth.getName();
+            Optional<com.velorix.backend.model.User> userOpt = userRepository.findByEmail(email);
+            String username = userOpt.map(com.velorix.backend.model.User::getUsername).orElse(email.split("@")[0]);
+
+            boolean dispatched = alertNotificationService.sendTestAlert(email, username);
+
+            if (dispatched) {
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Test alert email successfully dispatched to " + email
+                ));
+            } else {
+                return ResponseEntity.status(500).body(Map.of(
+                    "success", false,
+                    "message", "Failed to send test alert. Please verify mail provider configuration."
+                ));
+            }
+        } catch (Exception e) {
+            log.error("Error triggering test alert: {}", e.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
