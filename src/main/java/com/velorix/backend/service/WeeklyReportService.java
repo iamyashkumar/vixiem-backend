@@ -406,9 +406,9 @@ public class WeeklyReportService {
             "          </tbody>" +
             "        </table>" +
             "      </div>" +
-            "      <div style='margin-top: 32px; text-align: center;'>" +
-            "        <a href='%s/dashboard' style='background: linear-gradient(135deg, #0ea5e9 0%%, #38bdf8 100%%); color: #08080a; font-weight: 800; font-size: 14px; text-decoration: none; padding: 14px 28px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);'>" +
-            "          Open Vixiem Command Center →" +
+            "      <div style='margin-top: 28px; text-align: center;'>" +
+            "        <a href='%s/dashboard' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
+            "          Open Command Center &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +

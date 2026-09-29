@@ -127,12 +127,13 @@ public class AlertNotificationService {
             "          </tr>" +
             "        </table>" +
             "      </div>" +
-            "      <div style='background: rgba(56, 189, 248, 0.08); border-radius: 10px; padding: 12px 16px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 12px; color: #bae6fd; margin-bottom: 24px;'>" +
-            "        ⚡ <strong>Automated Alerts Active:</strong> If this endpoint goes DOWN or encounters timeouts, you will receive an instant incident alert email at <strong>%s</strong>, followed by a recovery notice when it returns online." +
+            "      <div style='background: #111827; border-radius: 8px; padding: 14px 18px; border: 1px solid #1f2937; border-left: 3px solid #0284c7; margin: 22px 0 24px; text-align: left;'>" +
+            "        <div style='color: #38bdf8; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;'>24/7 Incident Surveillance Active</div>" +
+            "        <p style='margin: 0; font-size: 12.5px; color: #94a3b8; line-height: 1.55;'>Continuous health verification is running. In the event of service disruptions, latency spikes, or HTTP errors, automated incident alerts will be dispatched immediately to <span style='color: #f1f5f9; font-weight: 600;'>%s</span>, followed by a recovery confirmation when the endpoint comes back online.</p>" +
             "      </div>" +
-            "      <div style='text-align: center;'>" +
-            "        <a href='%s/dashboard/endpoints' style='background: linear-gradient(135deg, #0ea5e9 0%%, #38bdf8 100%%); color: #08080a; font-weight: 800; font-size: 13px; text-decoration: none; padding: 12px 26px; border-radius: 8px; display: inline-block;'>" +
-            "          View in Vixiem Fleet Dashboard →" +
+            "      <div style='text-align: center; margin: 26px 0 10px;'>" +
+            "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
+            "          View in Fleet Dashboard &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
@@ -159,9 +160,9 @@ public class AlertNotificationService {
                 "URL: " + endpoint.getUrl() + "\n" +
                 "Interval: Every " + endpoint.getCheckIntervalSeconds() + "s\n" +
                 "Status: " + statusLabel + "\n" +
-                "Active since: " + timestampStr + "\n\n" +
-                "Automated downtime and recovery alerts will be dispatched to " + targetEmail + "\n\n" +
-                "View endpoint: " + frontendUrl + "/dashboard/endpoints";
+                "Active Since: " + timestampStr + "\n\n" +
+                "24/7 Incident Surveillance Active: Real-time incident alerts will be dispatched to " + targetEmail + " if service disruptions occur.\n\n" +
+                "View in Fleet Dashboard: " + frontendUrl + "/dashboard/endpoints";
 
         // Try Resend API
         if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend")) {
@@ -260,9 +261,9 @@ public class AlertNotificationService {
             "        <div style='margin-bottom: 6px;'>• <strong>Delivery Channel:</strong> Real-Time HTTPS API (Zero-Drop)</div>" +
             "        <div>• <strong>Active Frequency:</strong> Instant Incident & Recovery Notifications</div>" +
             "      </div>" +
-            "      <div style='text-align: center; margin-top: 24px;'>" +
-            "        <a href='%s/dashboard' style='background: linear-gradient(135deg, #0ea5e9 0%%, #38bdf8 100%%); color: #08080a; font-weight: 800; font-size: 13px; text-decoration: none; padding: 12px 24px; border-radius: 8px; display: inline-block;'>" +
-            "          Open Vixiem Command Center →" +
+            "      <div style='text-align: center; margin-top: 26px;'>" +
+            "        <a href='%s/dashboard' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
+            "          Open Command Center &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
@@ -504,9 +505,9 @@ public class AlertNotificationService {
             "          %s" +
             "        </table>" +
             "      </div>" +
-            "      <div style='text-align: center; margin-top: 28px;'>" +
-            "        <a href='%s/dashboard' style='background: linear-gradient(135deg, #0ea5e9 0%%, #38bdf8 100%%); color: #08080a; font-weight: 800; font-size: 13px; text-decoration: none; padding: 14px 28px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);'>" +
-            "          Open Vixiem Command Center →" +
+            "      <div style='text-align: center; margin-top: 26px;'>" +
+            "        <a href='%s/dashboard' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
+            "          Open Command Center &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
