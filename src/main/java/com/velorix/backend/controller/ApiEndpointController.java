@@ -207,6 +207,13 @@ public class ApiEndpointController {
             
             auditService.logEvent(userId, "ENDPOINT_UPDATED", Map.of("endpointId", saved.getId(), "name", saved.getName()));
             
+            // Dispatch instant email notification confirming updated configuration
+            try {
+                alertNotificationService.sendEndpointUpdatedNotification(saved);
+            } catch (Exception notifyEx) {
+                log.warn("Async endpoint update notification dispatch error: {}", notifyEx.getMessage());
+            }
+
             log.info("Endpoint updated: {} by user: {}", id, userId);
             return ResponseEntity.ok(saved);
         } catch (Exception e) {
@@ -237,6 +244,13 @@ public class ApiEndpointController {
             
             auditService.logEvent(userId, "ENDPOINT_DELETED", Map.of("endpointId", id, "name", existing.getName()));
             
+            // Dispatch instant email notification confirming endpoint removal
+            try {
+                alertNotificationService.sendEndpointDeletedNotification(existing);
+            } catch (Exception notifyEx) {
+                log.warn("Async endpoint deletion notification dispatch error: {}", notifyEx.getMessage());
+            }
+
             log.info("Endpoint deleted: {} ({}) by user: {}", id, existing.getName(), userId);
 
             return ResponseEntity.ok(Map.of(

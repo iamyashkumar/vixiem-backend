@@ -188,6 +188,258 @@ public class AlertNotificationService {
         }
     }
 
+        @Async
+    public void sendEndpointUpdatedNotification(ApiEndpoint endpoint) {
+        log.info("Sending endpoint updated notification for '{}'", endpoint.getName());
+
+        String targetEmail = endpoint.getAlertEmail();
+        String username = null;
+        if (targetEmail == null || targetEmail.trim().isEmpty()) {
+            String userId = endpoint.getUserId();
+            if (userId != null && userId.contains("@")) {
+                targetEmail = userId;
+            } else if (userId != null) {
+                Optional<User> userOpt = userRepository.findById(userId);
+                if (userOpt.isEmpty()) {
+                    userOpt = userRepository.findByEmail(userId);
+                }
+                if (userOpt.isPresent()) {
+                    targetEmail = userOpt.get().getEmail();
+                    username = userOpt.get().getUsername();
+                }
+            }
+        }
+
+        if (targetEmail == null || !targetEmail.contains("@")) {
+            log.warn("No valid destination email for endpoint update notification '{}'", endpoint.getName());
+            return;
+        }
+
+        if (username == null || username.trim().isEmpty()) {
+            username = targetEmail.split("@")[0];
+        }
+
+        String subject = "[Vixiem Alert] Sentinel Updated: Endpoint Configuration Saved";
+        String timestampStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String statusLabel = endpoint.getLastStatus() != null && endpoint.getLastStatus() ? "UP (Operational)" : "INITIALIZING (In Progress)";
+        String alertsStatus = endpoint.isAlertsEnabled() ? "Active (Real-time dispatch)" : "Muted (Alerts Disabled)";
+
+        String htmlBody = String.format(
+            "<!DOCTYPE html>" +
+            "<html><head><meta charset='utf-8'></head>" +
+            "<body style='margin:0; padding:0; background-color: #08080a; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; color: #f8fafc;'>" +
+            "  <div style='max-width: 580px; margin: 30px auto; background: #0f141f; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.3); overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);'>" +
+            "    <div style='background: linear-gradient(135deg, #0b111e 0%%, #131c2e 100%%); padding: 28px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: center;'>" +
+            "      <div style='font-size: 24px; font-weight: 900; color: #ffffff;'>Vixiem<span style='color: #38bdf8;'>.</span></div>" +
+            "      <div style='display: inline-block; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 9999px; margin-top: 12px; text-transform: uppercase;'>Sentinel Synchronized</div>" +
+            "      <h1 style='font-size: 20px; font-weight: 800; color: #ffffff; margin: 16px 0 4px;'>Endpoint Settings Updated ⚙️</h1>" +
+            "      <p style='color: #94a3b8; font-size: 13px; margin: 0;'>Your updated surveillance configurations have taken effect immediately.</p>" +
+            "    </div>" +
+            "    <div style='padding: 28px;'>" +
+            "      <p style='font-size: 14px; color: #cbd5e1; margin-top: 0;'>Hello <strong>%s</strong>,</p>" +
+            "      <p style='font-size: 13px; color: #94a3b8; line-height: 1.6;'>You recently updated the configuration for <strong>%s</strong>. Our distributed worker fleet has synchronized the latest settings.</p>" +
+            "      <div style='background: #141b2b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); padding: 18px; margin: 20px 0;'>" +
+            "        <table style='width: 100%%; border-collapse: collapse; font-size: 13px;'>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8; width: 35%%;'>Endpoint Name:</td>" +
+            "            <td style='padding: 8px 0; font-weight: 700; color: #ffffff;'>%s</td>" +
+            "          </tr>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Target URL:</td>" +
+            "            <td style='padding: 8px 0; font-family: monospace; color: #38bdf8; word-break: break-all;'>%s</td>" +
+            "          </tr>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Check Interval:</td>" +
+            "            <td style='padding: 8px 0; color: #f8fafc;'>Every %d seconds</td>" +
+            "          </tr>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Alert Policy:</td>" +
+            "            <td style='padding: 8px 0; color: #f8fafc;'>%s</td>" +
+            "          </tr>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Current Status:</td>" +
+            "            <td style='padding: 8px 0; font-weight: bold; color: #10b981;'>%s</td>" +
+            "          </tr>" +
+            "          <tr>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Updated At:</td>" +
+            "            <td style='padding: 8px 0; color: #f8fafc;'>%s</td>" +
+            "          </tr>" +
+            "        </table>" +
+            "      </div>" +
+            "      <div style='background: #111827; border-radius: 8px; padding: 14px 18px; border: 1px solid #1f2937; border-left: 3px solid #0284c7; margin: 22px 0 24px; text-align: left;'>" +
+            "        <div style='color: #38bdf8; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;'>Parameters Re-Synchronized</div>" +
+            "        <p style='margin: 0; font-size: 12.5px; color: #94a3b8; line-height: 1.55;'>Your modifications are live across all monitoring nodes. Incident alerts remain armed and will dispatch to <span style='color: #f1f5f9; font-weight: 600;'>%s</span> in case of outages.</p>" +
+            "      </div>" +
+            "      <div style='text-align: center; margin: 26px 0 10px;'>" +
+            "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
+            "          View in Fleet Dashboard &rarr;" +
+            "        </a>" +
+            "      </div>" +
+            "    </div>" +
+            "    <div style='background: #0b111e; padding: 18px 24px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;'>" +
+            "      <div style='font-weight: 600; color: #94a3b8; margin-bottom: 4px;'>Vixiem Cloud Observability Sentinel</div>" +
+            "      <div>Manage your endpoints at <a href='%s/dashboard/endpoints' style='color: #38bdf8; text-decoration: underline;'>Vixiem Endpoints</a>.</div>" +
+            "    </div>" +
+            "  </div>" +
+            "</body></html>",
+            username,
+            endpoint.getName(),
+            endpoint.getName(),
+            endpoint.getUrl(),
+            endpoint.getCheckIntervalSeconds(),
+            alertsStatus,
+            statusLabel,
+            timestampStr,
+            targetEmail,
+            frontendUrl,
+            frontendUrl
+        );
+
+        String plainText = "Vixiem Sentinel Notification\n\n" +
+                "Monitored endpoint configuration updated: " + endpoint.getName() + "\n" +
+                "URL: " + endpoint.getUrl() + "\n" +
+                "Interval: Every " + endpoint.getCheckIntervalSeconds() + "s\n" +
+                "Status: " + statusLabel + "\n" +
+                "Updated At: " + timestampStr + "\n\n" +
+                "Real-time incident alerts will be dispatched to " + targetEmail + " if service disruptions occur.\n\n" +
+                "View in Fleet Dashboard: " + frontendUrl + "/dashboard/endpoints";
+
+        if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend")) {
+            boolean sent = sendViaResend(targetEmail, subject, htmlBody, plainText);
+            if (sent) {
+                log.info("Endpoint update email sent via Resend API to {} for '{}'", targetEmail, endpoint.getName());
+                return;
+            }
+        }
+
+        if (mailSender != null) {
+            try {
+                SimpleMailMessage message = new SimpleMailMessage();
+                message.setTo(targetEmail);
+                message.setSubject(subject);
+                message.setText(plainText);
+                mailSender.send(message);
+                log.info("Endpoint update email sent via JavaMailSender to {}", targetEmail);
+            } catch (Exception e) {
+                log.error("Failed to send endpoint update email via JavaMailSender to {}: {}", targetEmail, e.getMessage());
+            }
+        }
+    }
+
+    @Async
+    public void sendEndpointDeletedNotification(ApiEndpoint endpoint) {
+        log.info("Sending endpoint deleted notification for '{}'", endpoint.getName());
+
+        String targetEmail = endpoint.getAlertEmail();
+        String username = null;
+        if (targetEmail == null || targetEmail.trim().isEmpty()) {
+            String userId = endpoint.getUserId();
+            if (userId != null && userId.contains("@")) {
+                targetEmail = userId;
+            } else if (userId != null) {
+                Optional<User> userOpt = userRepository.findById(userId);
+                if (userOpt.isEmpty()) {
+                    userOpt = userRepository.findByEmail(userId);
+                }
+                if (userOpt.isPresent()) {
+                    targetEmail = userOpt.get().getEmail();
+                    username = userOpt.get().getUsername();
+                }
+            }
+        }
+
+        if (targetEmail == null || !targetEmail.contains("@")) {
+            log.warn("No valid destination email for endpoint deletion notification '{}'", endpoint.getName());
+            return;
+        }
+
+        if (username == null || username.trim().isEmpty()) {
+            username = targetEmail.split("@")[0];
+        }
+
+        String subject = "[Vixiem Alert] Sentinel Deactivated: Monitored Endpoint Removed";
+        String timestampStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        String htmlBody = String.format(
+            "<!DOCTYPE html>" +
+            "<html><head><meta charset='utf-8'></head>" +
+            "<body style='margin:0; padding:0; background-color: #08080a; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; color: #f8fafc;'>" +
+            "  <div style='max-width: 580px; margin: 30px auto; background: #0f141f; border-radius: 16px; border: 1px solid rgba(239, 68, 68, 0.3); overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);'>" +
+            "    <div style='background: linear-gradient(135deg, #0b111e 0%%, #1f1315 100%%); padding: 28px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: center;'>" +
+            "      <div style='font-size: 24px; font-weight: 900; color: #ffffff;'>Vixiem<span style='color: #ef4444;'>.</span></div>" +
+            "      <div style='display: inline-block; background: rgba(239, 68, 68, 0.15); color: #f87171; font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 9999px; margin-top: 12px; text-transform: uppercase;'>Sentinel Decommissioned</div>" +
+            "      <h1 style='font-size: 20px; font-weight: 800; color: #ffffff; margin: 16px 0 4px;'>Monitored Target Removed 🛑</h1>" +
+            "      <p style='color: #94a3b8; font-size: 13px; margin: 0;'>Automated health surveillance has been deactivated for this endpoint.</p>" +
+            "    </div>" +
+            "    <div style='padding: 28px;'>" +
+            "      <p style='font-size: 14px; color: #cbd5e1; margin-top: 0;'>Hello <strong>%s</strong>,</p>" +
+            "      <p style='font-size: 13px; color: #94a3b8; line-height: 1.6;'>The endpoint <strong>%s</strong> has been removed from your Vixiem fleet. Automated polling and incident dispatches have ceased.</p>" +
+            "      <div style='background: #141b2b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); padding: 18px; margin: 20px 0;'>" +
+            "        <table style='width: 100%%; border-collapse: collapse; font-size: 13px;'>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8; width: 35%%;'>Endpoint Name:</td>" +
+            "            <td style='padding: 8px 0; font-weight: 700; color: #ffffff;'>%s</td>" +
+            "          </tr>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Former Target URL:</td>" +
+            "            <td style='padding: 8px 0; font-family: monospace; color: #94a3b8; word-break: break-all;'>%s</td>" +
+            "          </tr>" +
+            "          <tr>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Deactivated At:</td>" +
+            "            <td style='padding: 8px 0; color: #f8fafc;'>%s</td>" +
+            "          </tr>" +
+            "        </table>" +
+            "      </div>" +
+            "      <div style='text-align: center; margin: 26px 0 10px;'>" +
+            "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
+            "          View Fleet Dashboard &rarr;" +
+            "        </a>" +
+            "      </div>" +
+            "    </div>" +
+            "    <div style='background: #0b111e; padding: 18px 24px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;'>" +
+            "      <div style='font-weight: 600; color: #94a3b8; margin-bottom: 4px;'>Vixiem Cloud Observability Sentinel</div>" +
+            "      <div>Manage your active targets at <a href='%s/dashboard/endpoints' style='color: #38bdf8; text-decoration: underline;'>Vixiem Endpoints</a>.</div>" +
+            "    </div>" +
+            "  </div>" +
+            "</body></html>",
+            username,
+            endpoint.getName(),
+            endpoint.getName(),
+            endpoint.getUrl(),
+            timestampStr,
+            frontendUrl,
+            frontendUrl
+        );
+
+        String plainText = "Vixiem Sentinel Notification\n\n" +
+                "Monitored endpoint deleted: " + endpoint.getName() + "\n" +
+                "URL: " + endpoint.getUrl() + "\n" +
+                "Deactivated At: " + timestampStr + "\n\n" +
+                "Surveillance polling has ceased for this target.\n\n" +
+                "View Fleet Dashboard: " + frontendUrl + "/dashboard/endpoints";
+
+        if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend")) {
+            boolean sent = sendViaResend(targetEmail, subject, htmlBody, plainText);
+            if (sent) {
+                log.info("Endpoint deletion email sent via Resend API to {} for '{}'", targetEmail, endpoint.getName());
+                return;
+            }
+        }
+
+        if (mailSender != null) {
+            try {
+                SimpleMailMessage message = new SimpleMailMessage();
+                message.setTo(targetEmail);
+                message.setSubject(subject);
+                message.setText(plainText);
+                mailSender.send(message);
+                log.info("Endpoint deletion email sent via JavaMailSender to {}", targetEmail);
+            } catch (Exception e) {
+                log.error("Failed to send endpoint deletion email via JavaMailSender to {}: {}", targetEmail, e.getMessage());
+            }
+        }
+    }
+
     @Async
     public void sendDowntimeAlert(ApiEndpoint endpoint, boolean isDown, String errorMessage) {
         log.info("Triggering alert notification for endpoint '{}' (isDown={})", endpoint.getName(), isDown);
