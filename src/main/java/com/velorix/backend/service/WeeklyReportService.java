@@ -328,77 +328,79 @@ public class WeeklyReportService {
         return new DispatchResult(false, finalMsg, hasResendKey ? "RESEND" : "NONE", 400);
     }
 
-    private String buildWeeklyReportHtml(String username, int totalEndpoints, double uptime, double avgLatency, long totalChecks, long totalErrors, List<Map<String, Object>> endpoints) {
+        private String buildWeeklyReportHtml(String username, int totalEndpoints, double uptime, double avgLatency, long totalChecks, long totalErrors, List<Map<String, Object>> endpoints) {
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("MMM dd, yyyy");
         String period = LocalDateTime.now().minusDays(7).format(dtf) + " — " + LocalDateTime.now().format(dtf);
 
         StringBuilder epRows = new StringBuilder();
         if (endpoints.isEmpty()) {
-            epRows.append("<tr><td colspan='4' style='padding: 16px; text-align: center; color: #94a3b8;'>No endpoints configured yet. Add your first endpoint in the Vixiem dashboard to activate live telemetry tracking.</td></tr>");
+            epRows.append("<tr><td colspan='4' style='padding: 16px; text-align: center; color: #64748b;'>No endpoints configured yet. Add your first endpoint in the Vixiem dashboard to activate live telemetry tracking.</td></tr>");
         } else {
             for (Map<String, Object> ep : endpoints) {
                 boolean isUp = (boolean) ep.get("isUp");
                 String statusBadge = isUp 
-                        ? "<span style='background: rgba(16, 185, 129, 0.15); color: #10b981; padding: 4px 10px; border-radius: 9999px; font-weight: bold; font-size: 11px;'>● OPERATIONAL</span>"
-                        : "<span style='background: rgba(239, 68, 68, 0.15); color: #ef4444; padding: 4px 10px; border-radius: 9999px; font-weight: bold; font-size: 11px;'>● INCIDENT</span>";
+                        ? "<span style='background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 11px;'>OPERATIONAL</span>"
+                        : "<span style='background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 11px;'>INCIDENT</span>";
 
                 epRows.append(String.format(
-                    "<tr style='border-bottom: 1px solid rgba(255,255,255,0.06);'>" +
-                    "  <td style='padding: 14px 12px; font-weight: 600; color: #f8fafc;'>%s<br/><span style='font-size: 11px; color: #64748b; font-family: monospace;'>%s</span></td>" +
-                    "  <td style='padding: 14px 12px; text-align: center;'>%s</td>" +
-                    "  <td style='padding: 14px 12px; text-align: center; font-weight: bold; color: #38bdf8;'>%s</td>" +
-                    "  <td style='padding: 14px 12px; text-align: center; font-family: monospace; color: #cbd5e1;'>%s</td>" +
+                    "<tr style='border-bottom: 1px solid #f1f5f9;'>" +
+                    "  <td style='padding: 12px 14px; font-weight: 600; color: #0f172a;'>%s<br/><span style='font-size: 11px; color: #64748b; font-family: monospace;'>%s</span></td>" +
+                    "  <td style='padding: 12px 14px; text-align: center;'>%s</td>" +
+                    "  <td style='padding: 12px 14px; text-align: center; font-weight: 600; color: #0284c7;'>%s</td>" +
+                    "  <td style='padding: 12px 14px; text-align: center; font-family: monospace; color: #475569;'>%s</td>" +
                     "</tr>",
                     ep.get("name"), ep.get("url"), statusBadge, ep.get("uptime"), ep.get("latency")
                 ));
             }
         }
 
+        String uptimeColor = uptime >= 99.0 ? "#16a34a" : (uptime >= 95.0 ? "#d97706" : "#dc2626");
+        String incidentColor = totalErrors == 0 ? "#16a34a" : "#dc2626";
+
         return String.format(
             Locale.US,
             "<!DOCTYPE html>" +
             "<html>" +
             "<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>" +
-            "<body style='margin:0; padding:0; background-color: #08080a; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; color: #f8fafc;'>" +
-            "  <div style='max-width: 640px; margin: 30px auto; background: #0f141f; border-radius: 18px; border: 1px solid rgba(56, 189, 248, 0.2); overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);'>" +
-            "    <div style='background: linear-gradient(135deg, #0b111e 0%%, #131c2e 100%%); padding: 32px 28px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: center;'>" +
-            "      <div style='font-size: 24px; font-weight: 900; letter-spacing: -0.02em; color: #ffffff;'>Vixiem<span style='color: #38bdf8;'>.</span></div>" +
-            "      <div style='font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #38bdf8; text-transform: uppercase; margin-top: 6px;'>Enterprise API Telemetry Digest</div>" +
-            "      <h1 style='font-size: 20px; font-weight: 800; color: #ffffff; margin: 18px 0 6px;'>Weekly Performance Digest</h1>" +
-            "      <p style='color: #94a3b8; font-size: 13px; margin: 0;'>Hello %s • Reporting Period: %s</p>" +
+            "<body style='margin:0; padding:0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color: #0f172a;'>" +
+            "  <div style='max-width: 620px; margin: 32px auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden;'>" +
+            "    <div style='padding: 28px 32px 20px; border-bottom: 1px solid #f1f5f9; text-align: center;'>" +
+            "      <div style='font-size: 18px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em;'>Vixiem</div>" +
+            "      <h1 style='font-size: 20px; font-weight: 700; color: #0f172a; margin: 14px 0 4px;'>Weekly Performance Digest</h1>" +
+            "      <p style='color: #64748b; font-size: 13px; margin: 0;'>Reporting Period: %s</p>" +
             "    </div>" +
-            "    <div style='padding: 28px;'>" +
+            "    <div style='padding: 28px 32px;'>" +
             "      <table style='width: 100%%; margin-bottom: 24px; border-collapse: separate; border-spacing: 10px;'>" +
             "        <tr>" +
-            "          <td style='background: #141b2b; padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); text-align: center; width: 50%%;'>" +
-            "            <div style='font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600;'>Fleet Uptime</div>" +
-            "            <div style='font-size: 24px; font-weight: 900; color: %s; margin-top: 4px;'>%.2f%%</div>" +
+            "          <td style='background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; width: 50%%;'>" +
+            "            <div style='font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;'>Fleet Uptime</div>" +
+            "            <div style='font-size: 24px; font-weight: 700; color: %s; margin-top: 4px;'>%.2f%%</div>" +
             "          </td>" +
-            "          <td style='background: #141b2b; padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); text-align: center; width: 50%%;'>" +
-            "            <div style='font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600;'>Avg Latency</div>" +
-            "            <div style='font-size: 24px; font-weight: 900; color: #38bdf8; margin-top: 4px;'>%.1f ms</div>" +
+            "          <td style='background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; width: 50%%;'>" +
+            "            <div style='font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;'>Avg Latency</div>" +
+            "            <div style='font-size: 24px; font-weight: 700; color: #0284c7; margin-top: 4px;'>%.1f ms</div>" +
             "          </td>" +
             "        </tr>" +
             "        <tr>" +
-            "          <td style='background: #141b2b; padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); text-align: center; width: 50%%;'>" +
-            "            <div style='font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600;'>Monitored Endpoints</div>" +
-            "            <div style='font-size: 24px; font-weight: 900; color: #ffffff; margin-top: 4px;'>%d</div>" +
+            "          <td style='background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; width: 50%%;'>" +
+            "            <div style='font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;'>Monitored Endpoints</div>" +
+            "            <div style='font-size: 24px; font-weight: 700; color: #0f172a; margin-top: 4px;'>%d</div>" +
             "          </td>" +
-            "          <td style='background: #141b2b; padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); text-align: center; width: 50%%;'>" +
-            "            <div style='font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600;'>Incidents (7D)</div>" +
-            "            <div style='font-size: 24px; font-weight: 900; color: %s; margin-top: 4px;'>%d</div>" +
+            "          <td style='background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; width: 50%%;'>" +
+            "            <div style='font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;'>Incidents (7D)</div>" +
+            "            <div style='font-size: 24px; font-weight: 700; color: %s; margin-top: 4px;'>%d</div>" +
             "          </td>" +
             "        </tr>" +
             "      </table>" +
-            "      <h3 style='font-size: 14px; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.05em; margin: 24px 0 12px;'>Endpoint Status Breakdown</h3>" +
-            "      <div style='background: #141b2b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); overflow: hidden;'>" +
+            "      <h3 style='font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin: 24px 0 10px;'>Endpoint Status Breakdown</h3>" +
+            "      <div style='background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden;'>" +
             "        <table style='width: 100%%; border-collapse: collapse; font-size: 12px;'>" +
             "          <thead>" +
-            "            <tr style='background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.08); color: #94a3b8; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em;'>" +
-            "              <th style='padding: 10px 12px; text-align: left;'>Endpoint</th>" +
-            "              <th style='padding: 10px 12px; text-align: center;'>Status</th>" +
-            "              <th style='padding: 10px 12px; text-align: center;'>7D Uptime</th>" +
-            "              <th style='padding: 10px 12px; text-align: center;'>Latency</th>" +
+            "            <tr style='background: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #64748b; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em;'>" +
+            "              <th style='padding: 10px 14px; text-align: left;'>Endpoint</th>" +
+            "              <th style='padding: 10px 14px; text-align: center;'>Status</th>" +
+            "              <th style='padding: 10px 14px; text-align: center;'>7D Uptime</th>" +
+            "              <th style='padding: 10px 14px; text-align: center;'>Latency</th>" +
             "            </tr>" +
             "          </thead>" +
             "          <tbody>" +
@@ -406,29 +408,29 @@ public class WeeklyReportService {
             "          </tbody>" +
             "        </table>" +
             "      </div>" +
-            "      <div style='margin-top: 28px; text-align: center;'>" +
-            "        <a href='%s/dashboard' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
-            "          Open Command Center &rarr;" +
+            "      <div style='margin-top: 26px; text-align: center;'>" +
+            "        <a href='%s/dashboard' style='display: inline-block; background: #0284c7; color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 10px 24px; border-radius: 6px; letter-spacing: 0.01em;'>" +
+            "          Dashboard &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
-            "    <div style='background: #0b111e; padding: 20px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 11px; color: #64748b;'>" +
-            "      Vixiem Cloud Observability Sentinel • Automated Weekly Telemetry Report<br/>" +
-            "      To adjust notification preferences, visit your account settings." +
+            "    <div style='background: #f8fafc; padding: 18px 24px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;'>" +
+            "      Vixiem Observability Platform • Weekly Telemetry Digest" +
             "    </div>" +
             "  </div>" +
             "</body>" +
             "</html>",
-            username, period,
-            uptime >= 99.0 ? "#10b981" : (uptime >= 95.0 ? "#f59e0b" : "#ef4444"),
-            uptime, avgLatency, totalEndpoints,
-            totalErrors == 0 ? "#10b981" : "#ef4444", totalErrors,
+            period,
+            uptimeColor, uptime,
+            avgLatency,
+            totalEndpoints,
+            incidentColor, totalErrors,
             epRows.toString(),
             frontendUrl
         );
     }
 
-    private String buildWeeklyReportPlainText(String username, int totalEndpoints, double uptime, double avgLatency, long totalChecks, long totalErrors, List<Map<String, Object>> endpoints) {
+private String buildWeeklyReportPlainText(String username, int totalEndpoints, double uptime, double avgLatency, long totalChecks, long totalErrors, List<Map<String, Object>> endpoints) {
         StringBuilder sb = new StringBuilder();
         sb.append("VIXIEM ENTERPRISE API TELEMETRY - WEEKLY REPORT\n");
         sb.append("================================================\n\n");

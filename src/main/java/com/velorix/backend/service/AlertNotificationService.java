@@ -85,62 +85,62 @@ public class AlertNotificationService {
             username = targetEmail.split("@")[0];
         }
 
-        String subject = "[Vixiem Alert] Sentinel Activated: Monitored Endpoint Added";
+        String subject = "[Vixiem] Monitored Target Added: " + endpoint.getName();
         String timestampStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         String statusLabel = endpoint.getLastStatus() != null && endpoint.getLastStatus() ? "UP (Operational)" : "INITIALIZING (In Progress)";
 
-        String htmlBody = String.format(
+                String htmlBody = String.format(
             "<!DOCTYPE html>" +
-            "<html><head><meta charset='utf-8'></head>" +
-            "<body style='margin:0; padding:0; background-color: #08080a; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; color: #f8fafc;'>" +
-            "  <div style='max-width: 580px; margin: 30px auto; background: #0f141f; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.3); overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);'>" +
-            "    <div style='background: linear-gradient(135deg, #0b111e 0%%, #131c2e 100%%); padding: 28px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: center;'>" +
-            "      <div style='font-size: 24px; font-weight: 900; color: #ffffff;'>Vixiem<span style='color: #38bdf8;'>.</span></div>" +
-            "      <div style='display: inline-block; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 9999px; margin-top: 12px; text-transform: uppercase;'>Sentinel Activated</div>" +
-            "      <h1 style='font-size: 20px; font-weight: 800; color: #ffffff; margin: 16px 0 4px;'>Monitored Target Registered ✅</h1>" +
-            "      <p style='color: #94a3b8; font-size: 13px; margin: 0;'>Automated health surveillance is now active for this endpoint.</p>" +
+            "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>" +
+            "<body style='margin:0; padding:0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color: #0f172a;'>" +
+            "  <div style='max-width: 580px; margin: 32px auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden;'>" +
+            "    <div style='padding: 28px 32px 20px; border-bottom: 1px solid #f1f5f9;'>" +
+            "      <div style='font-size: 18px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em;'>Vixiem</div>" +
+            "      <h1 style='font-size: 19px; font-weight: 700; color: #0f172a; margin: 16px 0 4px;'>Monitored Target Added</h1>" +
+            "      <p style='color: #64748b; font-size: 13px; margin: 0;'>Automated health surveillance is active for this endpoint.</p>" +
             "    </div>" +
-            "    <div style='padding: 28px;'>" +
-            "      <p style='font-size: 14px; color: #cbd5e1; margin-top: 0;'>Hello <strong>%s</strong>,</p>" +
-            "      <p style='font-size: 13px; color: #94a3b8; line-height: 1.6;'>You added a new endpoint to your Vixiem fleet. Our distributed workers will continuously check its health, response latency, and uptime status.</p>" +
-            "      <div style='background: #141b2b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); padding: 18px; margin: 20px 0;'>" +
+            "    <div style='padding: 28px 32px;'>" +
+            "      <p style='font-size: 14px; color: #334155; margin-top: 0;'>Hello <strong>%s</strong>,</p>" +
+            "      <p style='font-size: 13px; color: #475569; line-height: 1.6;'>A new endpoint has been registered for continuous monitoring. Automated health checks and response latency measurements are now active.</p>" +
+            "      <div style='background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; padding: 14px 18px; margin: 20px 0;'>" +
             "        <table style='width: 100%%; border-collapse: collapse; font-size: 13px;'>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8; width: 35%%;'>Endpoint Name:</td>" +
-            "            <td style='padding: 8px 0; font-weight: 700; color: #ffffff;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b; width: 35%%;'>Endpoint Name:</td>" +
+            "            <td style='padding: 8px 0; font-weight: 600; color: #0f172a;'>%s</td>" +
             "          </tr>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Target URL:</td>" +
-            "            <td style='padding: 8px 0; font-family: monospace; color: #38bdf8; word-break: break-all;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Target URL:</td>" +
+            "            <td style='padding: 8px 0; font-family: monospace; color: #0284c7; word-break: break-all;'>%s</td>" +
             "          </tr>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Check Frequency:</td>" +
-            "            <td style='padding: 8px 0; color: #f8fafc;'>Every %d seconds</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Check Frequency:</td>" +
+            "            <td style='padding: 8px 0; color: #0f172a;'>Every %d seconds</td>" +
             "          </tr>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Status:</td>" +
-            "            <td style='padding: 8px 0; font-weight: bold; color: #10b981;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Status:</td>" +
+            "            <td style='padding: 8px 0; font-weight: 600; color: #16a34a;'>%s</td>" +
             "          </tr>" +
             "          <tr>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Active Since:</td>" +
-            "            <td style='padding: 8px 0; color: #f8fafc;'>%s</td>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Registered At:</td>" +
+            "            <td style='padding: 8px 0; color: #0f172a;'>%s</td>" +
             "          </tr>" +
             "        </table>" +
             "      </div>" +
-            "      <div style='background: #111827; border-radius: 8px; padding: 14px 18px; border: 1px solid #1f2937; border-left: 3px solid #0284c7; margin: 22px 0 24px; text-align: left;'>" +
-            "        <div style='color: #38bdf8; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;'>24/7 Incident Surveillance Active</div>" +
-            "        <p style='margin: 0; font-size: 12.5px; color: #94a3b8; line-height: 1.55;'>Continuous health verification is running. In the event of service disruptions, latency spikes, or HTTP errors, automated incident alerts will be dispatched immediately to <span style='color: #f1f5f9; font-weight: 600;'>%s</span>, followed by a recovery confirmation when the endpoint comes back online.</p>" +
+            "      <div style='background: #f8fafc; border: 1px solid #e2e8f0; border-left: 3px solid #0284c7; border-radius: 6px; padding: 12px 16px; margin: 20px 0; text-align: left;'>" +
+            "        <div style='font-size: 11px; font-weight: 700; color: #0284c7; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;'>Monitoring Active</div>" +
+            "        <p style='margin: 0; font-size: 12.5px; color: #475569; line-height: 1.5;'>" +
+            "          Continuous health checks are active. Incident alerts will be dispatched immediately to <span style='color: #0f172a; font-weight: 600;'>%s</span> if downtime or response timeouts occur." +
+            "        </p>" +
             "      </div>" +
             "      <div style='text-align: center; margin: 26px 0 10px;'>" +
-            "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
+            "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 10px 24px; border-radius: 6px; letter-spacing: 0.01em;'>" +
             "          Dashboard &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
-            "    <div style='background: #0b111e; padding: 18px 24px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;'>" +
-            "      <div style='font-weight: 600; color: #94a3b8; margin-bottom: 4px;'>Vixiem Cloud Observability Sentinel</div>" +
-            "      <div>You received this automated notification because a monitored target was added to your account.<br/>" +
-            "      Manage your endpoints at <a href='%s/dashboard/endpoints' style='color: #38bdf8; text-decoration: underline;'>Vixiem Endpoints</a>.</div>" +
+            "    <div style='background: #f8fafc; padding: 18px 28px; border-top: 1px solid #f1f5f9; text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;'>" +
+            "      <div style='font-weight: 600; color: #475569; margin-bottom: 2px;'>Vixiem Observability Platform</div>" +
+            "      <div>Manage your endpoints at <a href='%s/dashboard/endpoints' style='color: #0284c7; text-decoration: underline;'>Vixiem Endpoints</a>.</div>" +
             "    </div>" +
             "  </div>" +
             "</body></html>",
@@ -219,66 +219,67 @@ public class AlertNotificationService {
             username = targetEmail.split("@")[0];
         }
 
-        String subject = "[Vixiem Alert] Sentinel Updated: Endpoint Configuration Saved";
+        String subject = "[Vixiem] Endpoint Configuration Updated: " + endpoint.getName();
         String timestampStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         String statusLabel = endpoint.getLastStatus() != null && endpoint.getLastStatus() ? "UP (Operational)" : "INITIALIZING (In Progress)";
         String alertsStatus = endpoint.isAlertsEnabled() ? "Active (Real-time dispatch)" : "Muted (Alerts Disabled)";
 
-        String htmlBody = String.format(
+                String htmlBody = String.format(
             "<!DOCTYPE html>" +
-            "<html><head><meta charset='utf-8'></head>" +
-            "<body style='margin:0; padding:0; background-color: #08080a; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; color: #f8fafc;'>" +
-            "  <div style='max-width: 580px; margin: 30px auto; background: #0f141f; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.3); overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);'>" +
-            "    <div style='background: linear-gradient(135deg, #0b111e 0%%, #131c2e 100%%); padding: 28px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: center;'>" +
-            "      <div style='font-size: 24px; font-weight: 900; color: #ffffff;'>Vixiem<span style='color: #38bdf8;'>.</span></div>" +
-            "      <div style='display: inline-block; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 9999px; margin-top: 12px; text-transform: uppercase;'>Sentinel Synchronized</div>" +
-            "      <h1 style='font-size: 20px; font-weight: 800; color: #ffffff; margin: 16px 0 4px;'>Endpoint Settings Updated ⚙️</h1>" +
-            "      <p style='color: #94a3b8; font-size: 13px; margin: 0;'>Your updated surveillance configurations have taken effect immediately.</p>" +
+            "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>" +
+            "<body style='margin:0; padding:0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color: #0f172a;'>" +
+            "  <div style='max-width: 580px; margin: 32px auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden;'>" +
+            "    <div style='padding: 28px 32px 20px; border-bottom: 1px solid #f1f5f9;'>" +
+            "      <div style='font-size: 18px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em;'>Vixiem</div>" +
+            "      <h1 style='font-size: 19px; font-weight: 700; color: #0f172a; margin: 16px 0 4px;'>Endpoint Configuration Updated</h1>" +
+            "      <p style='color: #64748b; font-size: 13px; margin: 0;'>Your updated surveillance configurations have taken effect immediately.</p>" +
             "    </div>" +
-            "    <div style='padding: 28px;'>" +
-            "      <p style='font-size: 14px; color: #cbd5e1; margin-top: 0;'>Hello <strong>%s</strong>,</p>" +
-            "      <p style='font-size: 13px; color: #94a3b8; line-height: 1.6;'>You recently updated the configuration for <strong>%s</strong>. Our distributed worker fleet has synchronized the latest settings.</p>" +
-            "      <div style='background: #141b2b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); padding: 18px; margin: 20px 0;'>" +
+            "    <div style='padding: 28px 32px;'>" +
+            "      <p style='font-size: 14px; color: #334155; margin-top: 0;'>Hello <strong>%s</strong>,</p>" +
+            "      <p style='font-size: 13px; color: #475569; line-height: 1.6;'>You recently updated the configuration for <strong>%s</strong>. Our distributed worker fleet has synchronized the latest settings.</p>" +
+            "      <div style='background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; padding: 14px 18px; margin: 20px 0;'>" +
             "        <table style='width: 100%%; border-collapse: collapse; font-size: 13px;'>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8; width: 35%%;'>Endpoint Name:</td>" +
-            "            <td style='padding: 8px 0; font-weight: 700; color: #ffffff;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b; width: 35%%;'>Endpoint Name:</td>" +
+            "            <td style='padding: 8px 0; font-weight: 600; color: #0f172a;'>%s</td>" +
             "          </tr>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Target URL:</td>" +
-            "            <td style='padding: 8px 0; font-family: monospace; color: #38bdf8; word-break: break-all;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Target URL:</td>" +
+            "            <td style='padding: 8px 0; font-family: monospace; color: #0284c7; word-break: break-all;'>%s</td>" +
             "          </tr>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Check Interval:</td>" +
-            "            <td style='padding: 8px 0; color: #f8fafc;'>Every %d seconds</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Check Interval:</td>" +
+            "            <td style='padding: 8px 0; color: #0f172a;'>Every %d seconds</td>" +
             "          </tr>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Alert Policy:</td>" +
-            "            <td style='padding: 8px 0; color: #f8fafc;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Alert Policy:</td>" +
+            "            <td style='padding: 8px 0; color: #0f172a;'>%s</td>" +
             "          </tr>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Current Status:</td>" +
-            "            <td style='padding: 8px 0; font-weight: bold; color: #10b981;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Current Status:</td>" +
+            "            <td style='padding: 8px 0; font-weight: 600; color: #16a34a;'>%s</td>" +
             "          </tr>" +
             "          <tr>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Updated At:</td>" +
-            "            <td style='padding: 8px 0; color: #f8fafc;'>%s</td>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Updated At:</td>" +
+            "            <td style='padding: 8px 0; color: #0f172a;'>%s</td>" +
             "          </tr>" +
             "        </table>" +
             "      </div>" +
-            "      <div style='background: #111827; border-radius: 8px; padding: 14px 18px; border: 1px solid #1f2937; border-left: 3px solid #0284c7; margin: 22px 0 24px; text-align: left;'>" +
-            "        <div style='color: #38bdf8; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;'>Parameters Re-Synchronized</div>" +
-            "        <p style='margin: 0; font-size: 12.5px; color: #94a3b8; line-height: 1.55;'>Your modifications are live across all monitoring nodes. Incident alerts remain armed and will dispatch to <span style='color: #f1f5f9; font-weight: 600;'>%s</span> in case of outages.</p>" +
+            "      <div style='background: #f8fafc; border: 1px solid #e2e8f0; border-left: 3px solid #0284c7; border-radius: 6px; padding: 12px 16px; margin: 20px 0; text-align: left;'>" +
+            "        <div style='font-size: 11px; font-weight: 700; color: #0284c7; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;'>Parameters Synchronized</div>" +
+            "        <p style='margin: 0; font-size: 12.5px; color: #475569; line-height: 1.5;'>" +
+            "          Your modifications are active across all monitoring nodes. Incident alerts remain armed and will dispatch to <span style='color: #0f172a; font-weight: 600;'>%s</span> in case of outages." +
+            "        </p>" +
             "      </div>" +
             "      <div style='text-align: center; margin: 26px 0 10px;'>" +
-            "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
+            "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 10px 24px; border-radius: 6px; letter-spacing: 0.01em;'>" +
             "          Dashboard &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
-            "    <div style='background: #0b111e; padding: 18px 24px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;'>" +
-            "      <div style='font-weight: 600; color: #94a3b8; margin-bottom: 4px;'>Vixiem Cloud Observability Sentinel</div>" +
-            "      <div>Manage your endpoints at <a href='%s/dashboard/endpoints' style='color: #38bdf8; text-decoration: underline;'>Vixiem Endpoints</a>.</div>" +
+            "    <div style='background: #f8fafc; padding: 18px 28px; border-top: 1px solid #f1f5f9; text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;'>" +
+            "      <div style='font-weight: 600; color: #475569; margin-bottom: 2px;'>Vixiem Observability Platform</div>" +
+            "      <div>Manage your endpoints at <a href='%s/dashboard/endpoints' style='color: #0284c7; text-decoration: underline;'>Vixiem Endpoints</a>.</div>" +
             "    </div>" +
             "  </div>" +
             "</body></html>",
@@ -357,48 +358,47 @@ public class AlertNotificationService {
             username = targetEmail.split("@")[0];
         }
 
-        String subject = "[Vixiem Alert] Sentinel Deactivated: Monitored Endpoint Removed";
+        String subject = "[Vixiem] Monitored Target Removed: " + endpoint.getName();
         String timestampStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 
-        String htmlBody = String.format(
+                String htmlBody = String.format(
             "<!DOCTYPE html>" +
-            "<html><head><meta charset='utf-8'></head>" +
-            "<body style='margin:0; padding:0; background-color: #08080a; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; color: #f8fafc;'>" +
-            "  <div style='max-width: 580px; margin: 30px auto; background: #0f141f; border-radius: 16px; border: 1px solid rgba(239, 68, 68, 0.3); overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);'>" +
-            "    <div style='background: linear-gradient(135deg, #0b111e 0%%, #1f1315 100%%); padding: 28px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: center;'>" +
-            "      <div style='font-size: 24px; font-weight: 900; color: #ffffff;'>Vixiem<span style='color: #ef4444;'>.</span></div>" +
-            "      <div style='display: inline-block; background: rgba(239, 68, 68, 0.15); color: #f87171; font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 9999px; margin-top: 12px; text-transform: uppercase;'>Sentinel Decommissioned</div>" +
-            "      <h1 style='font-size: 20px; font-weight: 800; color: #ffffff; margin: 16px 0 4px;'>Monitored Target Removed 🛑</h1>" +
-            "      <p style='color: #94a3b8; font-size: 13px; margin: 0;'>Automated health surveillance has been deactivated for this endpoint.</p>" +
+            "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>" +
+            "<body style='margin:0; padding:0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color: #0f172a;'>" +
+            "  <div style='max-width: 580px; margin: 32px auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden;'>" +
+            "    <div style='padding: 28px 32px 20px; border-bottom: 1px solid #f1f5f9;'>" +
+            "      <div style='font-size: 18px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em;'>Vixiem</div>" +
+            "      <h1 style='font-size: 19px; font-weight: 700; color: #0f172a; margin: 16px 0 4px;'>Monitored Target Removed</h1>" +
+            "      <p style='color: #64748b; font-size: 13px; margin: 0;'>Automated health surveillance has been deactivated for this endpoint.</p>" +
             "    </div>" +
-            "    <div style='padding: 28px;'>" +
-            "      <p style='font-size: 14px; color: #cbd5e1; margin-top: 0;'>Hello <strong>%s</strong>,</p>" +
-            "      <p style='font-size: 13px; color: #94a3b8; line-height: 1.6;'>The endpoint <strong>%s</strong> has been removed from your Vixiem fleet. Automated polling and incident dispatches have ceased.</p>" +
-            "      <div style='background: #141b2b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); padding: 18px; margin: 20px 0;'>" +
+            "    <div style='padding: 28px 32px;'>" +
+            "      <p style='font-size: 14px; color: #334155; margin-top: 0;'>Hello <strong>%s</strong>,</p>" +
+            "      <p style='font-size: 13px; color: #475569; line-height: 1.6;'>The endpoint <strong>%s</strong> has been removed from your Vixiem fleet. Automated polling and incident dispatches have ceased.</p>" +
+            "      <div style='background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; padding: 14px 18px; margin: 20px 0;'>" +
             "        <table style='width: 100%%; border-collapse: collapse; font-size: 13px;'>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8; width: 35%%;'>Endpoint Name:</td>" +
-            "            <td style='padding: 8px 0; font-weight: 700; color: #ffffff;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b; width: 35%%;'>Endpoint Name:</td>" +
+            "            <td style='padding: 8px 0; font-weight: 600; color: #0f172a;'>%s</td>" +
             "          </tr>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Former Target URL:</td>" +
-            "            <td style='padding: 8px 0; font-family: monospace; color: #94a3b8; word-break: break-all;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Former Target URL:</td>" +
+            "            <td style='padding: 8px 0; font-family: monospace; color: #64748b; word-break: break-all;'>%s</td>" +
             "          </tr>" +
             "          <tr>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Deactivated At:</td>" +
-            "            <td style='padding: 8px 0; color: #f8fafc;'>%s</td>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Deactivated At:</td>" +
+            "            <td style='padding: 8px 0; color: #0f172a;'>%s</td>" +
             "          </tr>" +
             "        </table>" +
             "      </div>" +
             "      <div style='text-align: center; margin: 26px 0 10px;'>" +
-            "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
+            "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 10px 24px; border-radius: 6px; letter-spacing: 0.01em;'>" +
             "          Dashboard &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
-            "    <div style='background: #0b111e; padding: 18px 24px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;'>" +
-            "      <div style='font-weight: 600; color: #94a3b8; margin-bottom: 4px;'>Vixiem Cloud Observability Sentinel</div>" +
-            "      <div>Manage your active targets at <a href='%s/dashboard/endpoints' style='color: #38bdf8; text-decoration: underline;'>Vixiem Endpoints</a>.</div>" +
+            "    <div style='background: #f8fafc; padding: 18px 28px; border-top: 1px solid #f1f5f9; text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;'>" +
+            "      <div style='font-weight: 600; color: #475569; margin-bottom: 2px;'>Vixiem Observability Platform</div>" +
+            "      <div>Manage your active targets at <a href='%s/dashboard/endpoints' style='color: #0284c7; text-decoration: underline;'>Vixiem Endpoints</a>.</div>" +
             "    </div>" +
             "  </div>" +
             "</body></html>",
@@ -491,36 +491,35 @@ public class AlertNotificationService {
             return new DispatchResult(false, "Invalid destination email address.", "NONE", 400);
         }
 
-        String subject = "[Vixiem Alert] Test Notification: Delivery Confirmed";
+        String subject = "[Vixiem] Test Notification: Delivery Confirmed";
         String timestampStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 
-        String htmlBody = String.format(
+                String htmlBody = String.format(
             "<!DOCTYPE html>" +
-            "<html><head><meta charset='utf-8'></head>" +
-            "<body style='margin:0; padding:0; background-color: #08080a; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; color: #f8fafc;'>" +
-            "  <div style='max-width: 560px; margin: 30px auto; background: #0f141f; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.3); overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);'>" +
-            "    <div style='background: linear-gradient(135deg, #0b111e 0%%, #131c2e 100%%); padding: 28px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: center;'>" +
-            "      <div style='font-size: 22px; font-weight: 900; color: #ffffff;'>Vixiem<span style='color: #38bdf8;'>.</span></div>" +
-            "      <div style='display: inline-block; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 9999px; margin-top: 10px; text-transform: uppercase;'>Alert System Test</div>" +
-            "      <h2 style='font-size: 18px; font-weight: 800; color: #ffffff; margin: 16px 0 4px;'>Alert Delivery Verified ✅</h2>" +
-            "      <p style='color: #94a3b8; font-size: 13px; margin: 0;'>Your email notifications are actively configured and operational.</p>" +
+            "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>" +
+            "<body style='margin:0; padding:0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color: #0f172a;'>" +
+            "  <div style='max-width: 580px; margin: 32px auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden;'>" +
+            "    <div style='padding: 28px 32px 20px; border-bottom: 1px solid #f1f5f9;'>" +
+            "      <div style='font-size: 18px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em;'>Vixiem</div>" +
+            "      <h1 style='font-size: 19px; font-weight: 700; color: #0f172a; margin: 16px 0 4px;'>Alert System Verification</h1>" +
+            "      <p style='color: #64748b; font-size: 13px; margin: 0;'>Email notification delivery has been successfully verified.</p>" +
             "    </div>" +
-            "    <div style='padding: 24px; font-size: 13px; line-height: 1.6; color: #cbd5e1;'>" +
-            "      <p>Hello <strong>%s</strong>,</p>" +
-            "      <p>This test confirms that your Vixiem endpoint monitoring alerts are delivering directly to <strong>%s</strong>.</p>" +
-            "      <div style='background: #141b2b; border-radius: 10px; padding: 14px; margin: 18px 0; border: 1px solid rgba(255,255,255,0.06);'>" +
-            "        <div style='margin-bottom: 6px;'>• <strong>Trigger Time:</strong> %s</div>" +
-            "        <div style='margin-bottom: 6px;'>• <strong>Delivery Channel:</strong> Real-Time HTTPS API (Zero-Drop)</div>" +
-            "        <div>• <strong>Active Frequency:</strong> Instant Incident & Recovery Notifications</div>" +
+            "    <div style='padding: 28px 32px; font-size: 13px; line-height: 1.6; color: #334155;'>" +
+            "      <p style='margin-top: 0;'>Hello <strong>%s</strong>,</p>" +
+            "      <p style='color: #475569;'>This automated test confirms that your Vixiem endpoint monitoring alerts are delivering directly to <strong>%s</strong>.</p>" +
+            "      <div style='background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; padding: 14px 18px; margin: 18px 0;'>" +
+            "        <div style='margin-bottom: 6px; color: #475569;'>• <strong>Trigger Time:</strong> <span style='color: #0f172a;'>%s</span></div>" +
+            "        <div style='margin-bottom: 6px; color: #475569;'>• <strong>Delivery Channel:</strong> <span style='color: #0f172a;'>HTTPS API (Zero-Drop)</span></div>" +
+            "        <div style='color: #475569;'>• <strong>Notification Policy:</strong> <span style='color: #0f172a;'>Incident & Recovery Alerts</span></div>" +
             "      </div>" +
-            "      <div style='text-align: center; margin-top: 26px;'>" +
-            "        <a href='%s/dashboard' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
-            "          Open Command Center &rarr;" +
+            "      <div style='text-align: center; margin-top: 24px;'>" +
+            "        <a href='%s/dashboard' style='display: inline-block; background: #0284c7; color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 10px 24px; border-radius: 6px; letter-spacing: 0.01em;'>" +
+            "          Dashboard &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
-            "    <div style='background: #0b111e; padding: 16px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 11px; color: #64748b;'>" +
-            "      Vixiem Cloud Observability Sentinel • Test Dispatch" +
+            "    <div style='background: #f8fafc; padding: 18px 28px; border-top: 1px solid #f1f5f9; text-align: center; font-size: 11px; color: #64748b;'>" +
+            "      Vixiem Observability Platform • Test Dispatch" +
             "    </div>" +
             "  </div>" +
             "</body></html>",
@@ -722,63 +721,70 @@ public class AlertNotificationService {
         }
     }
 
-    private String buildAlertHtml(ApiEndpoint endpoint, boolean isDown, String errorMessage, String timestampStr) {
-        String badgeColor = isDown ? "rgba(239, 68, 68, 0.15)" : "rgba(16, 185, 129, 0.15)";
-        String badgeTextColor = isDown ? "#ef4444" : "#10b981";
-        String statusText = isDown ? "🔴 INCIDENT: ENDPOINT DOWN" : "🟢 RECOVERED: ENDPOINT OPERATIONAL";
-        String headline = isDown ? "Endpoint Outage Detected" : "Service Restored to Normal";
+        private String buildAlertHtml(ApiEndpoint endpoint, boolean isDown, String errorMessage, String timestampStr) {
+        String borderColor = isDown ? "#dc2626" : "#16a34a";
+        String badgeBg = isDown ? "#fef2f2" : "#f0fdf4";
+        String badgeText = isDown ? "#dc2626" : "#16a34a";
+        String badgeBorder = isDown ? "#fecaca" : "#bbf7d0";
+        String statusBadgeLabel = isDown ? "ENDPOINT DOWN" : "SERVICE RESTORED";
+        String headline = isDown ? "Service Disruption Detected" : "Service Restored to Normal";
+        String subtitle = isDown 
+                ? "Automated health check failed for <strong>" + endpoint.getName() + "</strong>." 
+                : "Automated health checks confirm <strong>" + endpoint.getName() + "</strong> is operational.";
 
         return String.format(
             "<!DOCTYPE html>" +
-            "<html><head><meta charset='utf-8'></head>" +
-            "<body style='margin:0; padding:0; background-color: #08080a; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; color: #f8fafc;'>" +
-            "  <div style='max-width: 580px; margin: 30px auto; background: #0f141f; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1); overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);'>" +
-            "    <div style='background: linear-gradient(135deg, #0b111e 0%%, #131c2e 100%%); padding: 28px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: center;'>" +
-            "      <div style='font-size: 24px; font-weight: 900; color: #ffffff;'>Vixiem<span style='color: #38bdf8;'>.</span></div>" +
-            "      <div style='display: inline-block; background: %s; color: %s; font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 9999px; margin-top: 12px; letter-spacing: 0.05em;'>%s</div>" +
-            "      <h1 style='font-size: 20px; font-weight: 800; color: #ffffff; margin: 16px 0 4px;'>%s</h1>" +
-            "      <p style='color: #94a3b8; font-size: 13px; margin: 0;'>Monitored Endpoint: <strong>%s</strong></p>" +
+            "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>" +
+            "<body style='margin:0; padding:0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color: #0f172a;'>" +
+            "  <div style='max-width: 580px; margin: 32px auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; border-top: 4px solid %s; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden;'>" +
+            "    <div style='padding: 24px 32px 18px; border-bottom: 1px solid #f1f5f9;'>" +
+            "      <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;'>" +
+            "        <div style='font-size: 18px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em;'>Vixiem</div>" +
+            "        <div style='display: inline-block; background: %s; color: %s; border: 1px solid %s; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em;'>%s</div>" +
+            "      </div>" +
+            "      <h1 style='font-size: 19px; font-weight: 700; color: #0f172a; margin: 0 0 4px;'>%s</h1>" +
+            "      <p style='color: #64748b; font-size: 13px; margin: 0;'>%s</p>" +
             "    </div>" +
-            "    <div style='padding: 28px;'>" +
-            "      <div style='background: #141b2b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); padding: 18px; margin-bottom: 24px;'>" +
+            "    <div style='padding: 28px 32px;'>" +
+            "      <div style='background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; padding: 14px 18px; margin-bottom: 20px;'>" +
             "        <table style='width: 100%%; border-collapse: collapse; font-size: 13px;'>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8; width: 35%%;'>Endpoint URL:</td>" +
-            "            <td style='padding: 8px 0; font-family: monospace; color: #38bdf8; font-weight: 600; word-break: break-all;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b; width: 35%%;'>Endpoint URL:</td>" +
+            "            <td style='padding: 8px 0; font-family: monospace; color: #0284c7; font-weight: 600; word-break: break-all;'>%s</td>" +
             "          </tr>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Status:</td>" +
-            "            <td style='padding: 8px 0; font-weight: bold; color: %s;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Current Status:</td>" +
+            "            <td style='padding: 8px 0; font-weight: 700; color: %s;'>%s</td>" +
             "          </tr>" +
-            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
-            "            <td style='padding: 8px 0; color: #94a3b8;'>Timestamp:</td>" +
-            "            <td style='padding: 8px 0; color: #f8fafc;'>%s</td>" +
+            "          <tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "            <td style='padding: 8px 0; color: #64748b;'>Timestamp:</td>" +
+            "            <td style='padding: 8px 0; color: #0f172a;'>%s</td>" +
             "          </tr>" +
             "          %s" +
             "        </table>" +
             "      </div>" +
-            "      <div style='text-align: center; margin-top: 26px;'>" +
-            "        <a href='%s/dashboard' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
-            "          Open Command Center &rarr;" +
+            "      <div style='text-align: center; margin-top: 24px;'>" +
+            "        <a href='%s/dashboard' style='display: inline-block; background: #0284c7; color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 10px 24px; border-radius: 6px; letter-spacing: 0.01em;'>" +
+            "          Dashboard &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
-            "    <div style='background: #0b111e; padding: 18px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 11px; color: #64748b;'>" +
-            "      Vixiem Cloud Observability Sentinel • Automated Telemetry Alert" +
+            "    <div style='background: #f8fafc; padding: 18px 28px; border-top: 1px solid #f1f5f9; text-align: center; font-size: 11px; color: #64748b;'>" +
+            "      Vixiem Observability Sentinel • Real-Time Telemetry Alert" +
             "    </div>" +
             "  </div>" +
             "</body></html>",
-            badgeColor, badgeTextColor, statusText, headline, endpoint.getName(),
-            endpoint.getUrl(), badgeTextColor, isDown ? "DOWN" : "UP (OPERATIONAL)",
+            borderColor, badgeBg, badgeText, badgeBorder, statusBadgeLabel, headline, subtitle,
+            endpoint.getUrl(), badgeText, isDown ? "DOWN" : "UP (OPERATIONAL)",
             timestampStr,
             (isDown && errorMessage != null && !errorMessage.isEmpty()) 
-                ? String.format("<tr><td style='padding: 8px 0; color: #94a3b8;'>Error Details:</td><td style='padding: 8px 0; color: #ef4444; font-family: monospace;'>%s</td></tr>", errorMessage)
+                ? String.format("<tr><td style='padding: 8px 0; color: #64748b;'>Error Details:</td><td style='padding: 8px 0; color: #dc2626; font-family: monospace; font-size: 12px;'>%s</td></tr>", errorMessage)
                 : "",
             frontendUrl
         );
     }
 
-    private String buildAlertPlainText(ApiEndpoint endpoint, boolean isDown, String errorMessage, String timestampStr) {
+private String buildAlertPlainText(ApiEndpoint endpoint, boolean isDown, String errorMessage, String timestampStr) {
         StringBuilder sb = new StringBuilder();
         if (isDown) {
             sb.append("Alert Notification - Vixiem Enterprise Monitoring\n\n");
