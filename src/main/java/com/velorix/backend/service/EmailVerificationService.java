@@ -167,7 +167,7 @@ public class EmailVerificationService {
             payload.put("text", plainText);
             payload.put("reply_to", "support@vixiem.com");
 
-            Map<String, String> headers = new LinkedHashMap<>();
+            Map<String, String> headers = new HashMap<>();
             headers.put("X-Auto-Response-Suppress", "All");
             headers.put("X-Entity-Ref-ID", UUID.randomUUID().toString());
             payload.put("headers", headers);
