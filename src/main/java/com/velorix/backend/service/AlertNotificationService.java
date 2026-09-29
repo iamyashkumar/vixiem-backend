@@ -133,7 +133,7 @@ public class AlertNotificationService {
             "      </div>" +
             "      <div style='text-align: center; margin: 26px 0 10px;'>" +
             "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
-            "          View in Fleet Dashboard &rarr;" +
+            "          Dashboard &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
@@ -162,7 +162,7 @@ public class AlertNotificationService {
                 "Status: " + statusLabel + "\n" +
                 "Active Since: " + timestampStr + "\n\n" +
                 "24/7 Incident Surveillance Active: Real-time incident alerts will be dispatched to " + targetEmail + " if service disruptions occur.\n\n" +
-                "View in Fleet Dashboard: " + frontendUrl + "/dashboard/endpoints";
+                "Dashboard: " + frontendUrl + "/dashboard/endpoints";
 
         // Try Resend API
         if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend")) {
@@ -272,7 +272,7 @@ public class AlertNotificationService {
             "      </div>" +
             "      <div style='text-align: center; margin: 26px 0 10px;'>" +
             "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
-            "          View in Fleet Dashboard &rarr;" +
+            "          Dashboard &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
@@ -302,7 +302,7 @@ public class AlertNotificationService {
                 "Status: " + statusLabel + "\n" +
                 "Updated At: " + timestampStr + "\n\n" +
                 "Real-time incident alerts will be dispatched to " + targetEmail + " if service disruptions occur.\n\n" +
-                "View in Fleet Dashboard: " + frontendUrl + "/dashboard/endpoints";
+                "Dashboard: " + frontendUrl + "/dashboard/endpoints";
 
         if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend")) {
             boolean sent = sendViaResend(targetEmail, subject, htmlBody, plainText);
@@ -392,7 +392,7 @@ public class AlertNotificationService {
             "      </div>" +
             "      <div style='text-align: center; margin: 26px 0 10px;'>" +
             "        <a href='%s/dashboard/endpoints' style='display: inline-block; background: #0284c7; background: linear-gradient(180deg, #0284c7 0%%, #0369a1 100%%); color: #ffffff !important; font-weight: 600; font-size: 13px; text-decoration: none; padding: 11px 24px; border-radius: 6px; border: 1px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.35); letter-spacing: 0.01em;'>" +
-            "          View Fleet Dashboard &rarr;" +
+            "          Dashboard &rarr;" +
             "        </a>" +
             "      </div>" +
             "    </div>" +
@@ -416,7 +416,7 @@ public class AlertNotificationService {
                 "URL: " + endpoint.getUrl() + "\n" +
                 "Deactivated At: " + timestampStr + "\n\n" +
                 "Surveillance polling has ceased for this target.\n\n" +
-                "View Fleet Dashboard: " + frontendUrl + "/dashboard/endpoints";
+                "Dashboard: " + frontendUrl + "/dashboard/endpoints";
 
         if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend")) {
             boolean sent = sendViaResend(targetEmail, subject, htmlBody, plainText);
