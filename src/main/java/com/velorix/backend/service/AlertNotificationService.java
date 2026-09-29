@@ -51,6 +51,142 @@ public class AlertNotificationService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    /**
+     * Send email notification when a new endpoint is registered for monitoring
+     */
+    @Async
+    public void sendEndpointCreatedNotification(ApiEndpoint endpoint) {
+        log.info("Sending endpoint created notification for '{}'", endpoint.getName());
+
+        String targetEmail = endpoint.getAlertEmail();
+        String username = null;
+        if (targetEmail == null || targetEmail.trim().isEmpty()) {
+            String userId = endpoint.getUserId();
+            if (userId != null && userId.contains("@")) {
+                targetEmail = userId;
+            } else if (userId != null) {
+                Optional<User> userOpt = userRepository.findById(userId);
+                if (userOpt.isEmpty()) {
+                    userOpt = userRepository.findByEmail(userId);
+                }
+                if (userOpt.isPresent()) {
+                    targetEmail = userOpt.get().getEmail();
+                    username = userOpt.get().getUsername();
+                }
+            }
+        }
+
+        if (targetEmail == null || !targetEmail.contains("@")) {
+            log.warn("No valid destination email for endpoint creation notification '{}'", endpoint.getName());
+            return;
+        }
+
+        if (username == null || username.trim().isEmpty()) {
+            username = targetEmail.split("@")[0];
+        }
+
+        String subject = "[Vixiem Alert] Sentinel Activated: Monitored Endpoint Added";
+        String timestampStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String statusLabel = endpoint.getLastStatus() != null && endpoint.getLastStatus() ? "UP (Operational)" : "INITIALIZING (In Progress)";
+
+        String htmlBody = String.format(
+            "<!DOCTYPE html>" +
+            "<html><head><meta charset='utf-8'></head>" +
+            "<body style='margin:0; padding:0; background-color: #08080a; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; color: #f8fafc;'>" +
+            "  <div style='max-width: 580px; margin: 30px auto; background: #0f141f; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.3); overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);'>" +
+            "    <div style='background: linear-gradient(135deg, #0b111e 0%%, #131c2e 100%%); padding: 28px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: center;'>" +
+            "      <div style='font-size: 24px; font-weight: 900; color: #ffffff;'>Vixiem<span style='color: #38bdf8;'>.</span></div>" +
+            "      <div style='display: inline-block; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 9999px; margin-top: 12px; text-transform: uppercase;'>Sentinel Activated</div>" +
+            "      <h1 style='font-size: 20px; font-weight: 800; color: #ffffff; margin: 16px 0 4px;'>Monitored Target Registered ✅</h1>" +
+            "      <p style='color: #94a3b8; font-size: 13px; margin: 0;'>Automated health surveillance is now active for this endpoint.</p>" +
+            "    </div>" +
+            "    <div style='padding: 28px;'>" +
+            "      <p style='font-size: 14px; color: #cbd5e1; margin-top: 0;'>Hello <strong>%s</strong>,</p>" +
+            "      <p style='font-size: 13px; color: #94a3b8; line-height: 1.6;'>You added a new endpoint to your Vixiem fleet. Our distributed workers will continuously check its health, response latency, and uptime status.</p>" +
+            "      <div style='background: #141b2b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); padding: 18px; margin: 20px 0;'>" +
+            "        <table style='width: 100%%; border-collapse: collapse; font-size: 13px;'>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8; width: 35%%;'>Endpoint Name:</td>" +
+            "            <td style='padding: 8px 0; font-weight: 700; color: #ffffff;'>%s</td>" +
+            "          </tr>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Target URL:</td>" +
+            "            <td style='padding: 8px 0; font-family: monospace; color: #38bdf8; word-break: break-all;'>%s</td>" +
+            "          </tr>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Check Frequency:</td>" +
+            "            <td style='padding: 8px 0; color: #f8fafc;'>Every %d seconds</td>" +
+            "          </tr>" +
+            "          <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Status:</td>" +
+            "            <td style='padding: 8px 0; font-weight: bold; color: #10b981;'>%s</td>" +
+            "          </tr>" +
+            "          <tr>" +
+            "            <td style='padding: 8px 0; color: #94a3b8;'>Active Since:</td>" +
+            "            <td style='padding: 8px 0; color: #f8fafc;'>%s</td>" +
+            "          </tr>" +
+            "        </table>" +
+            "      </div>" +
+            "      <div style='background: rgba(56, 189, 248, 0.08); border-radius: 10px; padding: 12px 16px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 12px; color: #bae6fd; margin-bottom: 24px;'>" +
+            "        ⚡ <strong>Automated Alerts Active:</strong> If this endpoint goes DOWN or encounters timeouts, you will receive an instant incident alert email at <strong>%s</strong>, followed by a recovery notice when it returns online." +
+            "      </div>" +
+            "      <div style='text-align: center;'>" +
+            "        <a href='%s/dashboard/endpoints' style='background: linear-gradient(135deg, #0ea5e9 0%%, #38bdf8 100%%); color: #08080a; font-weight: 800; font-size: 13px; text-decoration: none; padding: 12px 26px; border-radius: 8px; display: inline-block;'>" +
+            "          View in Vixiem Fleet Dashboard →" +
+            "        </a>" +
+            "      </div>" +
+            "    </div>" +
+            "    <div style='background: #0b111e; padding: 18px 24px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 11px; color: #64748b; line-height: 1.6;'>" +
+            "      <div style='font-weight: 600; color: #94a3b8; margin-bottom: 4px;'>Vixiem Cloud Observability Sentinel</div>" +
+            "      <div>You received this automated notification because a monitored target was added to your account.<br/>" +
+            "      Manage your endpoints at <a href='%s/dashboard/endpoints' style='color: #38bdf8; text-decoration: underline;'>Vixiem Endpoints</a>.</div>" +
+            "    </div>" +
+            "  </div>" +
+            "</body></html>",
+            username,
+            endpoint.getName(),
+            endpoint.getUrl(),
+            endpoint.getCheckIntervalSeconds(),
+            statusLabel,
+            timestampStr,
+            targetEmail,
+            frontendUrl,
+            frontendUrl
+        );
+
+        String plainText = "Vixiem Sentinel Notification\n\n" +
+                "Monitored endpoint successfully registered: " + endpoint.getName() + "\n" +
+                "URL: " + endpoint.getUrl() + "\n" +
+                "Interval: Every " + endpoint.getCheckIntervalSeconds() + "s\n" +
+                "Status: " + statusLabel + "\n" +
+                "Active since: " + timestampStr + "\n\n" +
+                "Automated downtime and recovery alerts will be dispatched to " + targetEmail + "\n\n" +
+                "View endpoint: " + frontendUrl + "/dashboard/endpoints";
+
+        // Try Resend API
+        if (resendApiKey != null && !resendApiKey.trim().isEmpty() && !resendApiKey.contains("your_resend")) {
+            boolean sent = sendViaResend(targetEmail, subject, htmlBody, plainText);
+            if (sent) {
+                log.info("Endpoint creation email sent via Resend API to {} for '{}'", targetEmail, endpoint.getName());
+                return;
+            }
+        }
+
+        // Fallback to JavaMailSender
+        if (mailSender != null) {
+            try {
+                SimpleMailMessage message = new SimpleMailMessage();
+                message.setTo(targetEmail);
+                message.setSubject(subject);
+                message.setText(plainText);
+                mailSender.send(message);
+                log.info("Endpoint creation email sent via JavaMailSender to {}", targetEmail);
+            } catch (Exception e) {
+                log.error("Failed to send endpoint creation email via JavaMailSender to {}: {}", targetEmail, e.getMessage());
+            }
+        }
+    }
+
     @Async
     public void sendDowntimeAlert(ApiEndpoint endpoint, boolean isDown, String errorMessage) {
         log.info("Triggering alert notification for endpoint '{}' (isDown={})", endpoint.getName(), isDown);

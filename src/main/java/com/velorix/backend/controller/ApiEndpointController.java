@@ -44,6 +44,9 @@ public class ApiEndpointController {
     @Autowired
     private com.velorix.backend.service.AuditService auditService;
 
+    @Autowired
+    private com.velorix.backend.service.AlertNotificationService alertNotificationService;
+
     /**
      * Extract user ID from SecurityContextHolder
      */
@@ -143,6 +146,13 @@ public class ApiEndpointController {
             }
 
             auditService.logEvent(userId, "ENDPOINT_CREATED", Map.of("endpointId", saved.getId(), "name", saved.getName()));
+            
+            // Dispatch instant email notification to user confirming active surveillance
+            try {
+                alertNotificationService.sendEndpointCreatedNotification(saved);
+            } catch (Exception notifyEx) {
+                log.warn("Async endpoint creation notification dispatch error: {}", notifyEx.getMessage());
+            }
             
             log.info("Endpoint created: {} for user: {}", endpoint.getName(), userId);
             return ResponseEntity.ok(saved);

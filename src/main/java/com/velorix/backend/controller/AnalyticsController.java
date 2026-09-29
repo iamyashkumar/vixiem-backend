@@ -81,6 +81,27 @@ public class AnalyticsController {
         }
     }
 
+    @GetMapping("/weekly-report-data")
+    public ResponseEntity<?> getWeeklyReportData() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+            }
+            String email = auth.getName();
+            Optional<com.velorix.backend.model.User> userOpt = userRepository.findByEmail(email);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+            }
+
+            Map<String, Object> reportData = weeklyReportService.getWeeklyReportDataForUser(userOpt.get());
+            return ResponseEntity.ok(reportData);
+        } catch (Exception e) {
+            log.error("Error fetching weekly report data: {}", e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PostMapping("/send-weekly-report")
     public ResponseEntity<?> sendWeeklyReport(@RequestBody(required = false) Map<String, String> body) {
         try {

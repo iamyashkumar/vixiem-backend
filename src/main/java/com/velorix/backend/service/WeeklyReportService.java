@@ -106,6 +106,80 @@ public class WeeklyReportService {
     /**
      * Send weekly report for a specific user (on-demand or automated)
      */
+    /**
+     * Compute and retrieve 7-day weekly report telemetry data for UI viewing & export
+     */
+    public Map<String, Object> getWeeklyReportDataForUser(User user) {
+        List<String> userIds = new ArrayList<>();
+        if (user.getId() != null) userIds.add(user.getId());
+        if (user.getEmail() != null) userIds.add(user.getEmail());
+
+        List<ApiEndpoint> endpoints = apiEndpointRepository.findByUserIdIn(userIds);
+        if (endpoints.isEmpty() && user.getId() != null) {
+            endpoints = apiEndpointRepository.findByUserId(user.getId());
+        }
+
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        Query logQuery = new Query(Criteria.where("userId").in(userIds).and("timestamp").gte(sevenDaysAgo));
+        List<LogEntry> logs = mongoTemplate.find(logQuery, LogEntry.class);
+
+        int totalEndpoints = endpoints.size();
+        long totalChecks = logs.size();
+        long totalErrors = logs.stream().filter(l -> "ERROR".equalsIgnoreCase(l.getLevel())).count();
+        double fleetUptime = totalChecks > 0 ? ((totalChecks - totalErrors) * 100.0 / totalChecks) : 100.0;
+        
+        OptionalDouble avgLatOpt = logs.stream()
+                .filter(l -> l.getResponseTimeMs() != null && l.getResponseTimeMs() > 0)
+                .mapToLong(LogEntry::getResponseTimeMs)
+                .average();
+        double avgLatency = avgLatOpt.orElse(0.0);
+
+        List<Map<String, Object>> endpointSummaries = new ArrayList<>();
+        for (ApiEndpoint ep : endpoints) {
+            long epChecks = logs.stream().filter(l -> ep.getId().equals(l.getEndpointId())).count();
+            long epErrors = logs.stream().filter(l -> ep.getId().equals(l.getEndpointId()) && "ERROR".equalsIgnoreCase(l.getLevel())).count();
+            double epUptime = epChecks > 0 ? ((epChecks - epErrors) * 100.0 / epChecks) : 100.0;
+            OptionalDouble epLat = logs.stream()
+                    .filter(l -> ep.getId().equals(l.getEndpointId()) && l.getResponseTimeMs() != null && l.getResponseTimeMs() > 0)
+                    .mapToLong(LogEntry::getResponseTimeMs)
+                    .average();
+
+            Map<String, Object> epData = new HashMap<>();
+            epData.put("id", ep.getId());
+            epData.put("name", ep.getName());
+            epData.put("url", ep.getUrl());
+            epData.put("uptime", String.format(Locale.US, "%.2f%%", epUptime));
+            epData.put("uptimeNum", Math.round(epUptime * 100.0) / 100.0);
+            epData.put("latency", String.format(Locale.US, "%.1f ms", epLat.orElse(avgLatency)));
+            epData.put("latencyMs", Math.round((epLat.orElse(avgLatency)) * 10.0) / 10.0);
+            epData.put("isUp", ep.getLastStatus() == null || ep.getLastStatus());
+            epData.put("checks", epChecks);
+            epData.put("errors", epErrors);
+            endpointSummaries.add(epData);
+        }
+
+        String displayName = user.getUsername() != null && !user.getUsername().trim().isEmpty() 
+                ? "@" + user.getUsername() 
+                : (user.getEmail() != null ? user.getEmail().split("@")[0] : "User");
+
+        String htmlBody = buildWeeklyReportHtml(displayName, totalEndpoints, fleetUptime, avgLatency, totalChecks, totalErrors, endpointSummaries);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalEndpoints", totalEndpoints);
+        result.put("totalChecks", totalChecks);
+        result.put("totalErrors", totalErrors);
+        result.put("fleetUptime", Math.round(fleetUptime * 100.0) / 100.0);
+        result.put("fleetUptimeFormatted", String.format(Locale.US, "%.2f%%", fleetUptime));
+        result.put("avgLatencyMs", Math.round(avgLatency * 10.0) / 10.0);
+        result.put("endpoints", endpointSummaries);
+        result.put("htmlReport", htmlBody);
+        result.put("recipientEmail", user.getEmail());
+        result.put("displayName", displayName);
+        result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm:ss")));
+
+        return result;
+    }
+
     public DispatchResult sendWeeklyReportForUser(User user, String overrideEmail) {
         String targetEmail = (overrideEmail != null && !overrideEmail.trim().isEmpty()) 
                 ? overrideEmail.trim() 
