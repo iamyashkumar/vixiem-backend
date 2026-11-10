@@ -20,6 +20,7 @@ public class AiQuotaService {
     private MongoTemplate mongoTemplate;
 
     private static final int BURST_COOLDOWN_SECONDS = 10;
+    public static final int DEFAULT_MAX_AI_CALLS = 15;
 
     public synchronized boolean reserveQuota(String userEmail) {
         User user = mongoTemplate.findOne(new Query(Criteria.where("email").is(userEmail)), User.class);
@@ -37,12 +38,18 @@ public class AiQuotaService {
 
         LocalDateTime resetThreshold = now.minusHours(24);
         boolean needsReset = user.getLastAiCallReset() == null || user.getLastAiCallReset().isBefore(resetThreshold);
-        int maxCalls = user.getMaxDailyAiCalls() > 0 ? user.getMaxDailyAiCalls() : 50;
+        
+        int maxCalls = user.getMaxDailyAiCalls();
+        if (maxCalls <= 0 || maxCalls == 10 || maxCalls == 50) {
+            maxCalls = DEFAULT_MAX_AI_CALLS;
+        }
 
         if (needsReset) {
+            // First call of the 24-hour cycle: start 24h timer now
             Query query = new Query(Criteria.where("email").is(userEmail));
             Update update = new Update()
                     .set("dailyAiCalls", 1)
+                    .set("maxDailyAiCalls", maxCalls)
                     .set("lastAiCallReset", now)
                     .set("lastApiCallTime", now)
                     .inc("totalAiCallsUsed", 1);
@@ -50,7 +57,8 @@ public class AiQuotaService {
             mongoTemplate.findAndModify(query, update, FindAndModifyOptions.options().returnNew(true), User.class);
             return true;
         } else {
-            // Atomic conditional increment: dailyAiCalls < maxCalls
+            // Within current 24-hour window: atomic increment if dailyAiCalls < maxCalls
+            // Note: lastAiCallReset is deliberately NOT modified, keeping the 24h countdown anchored to first call
             Query query = new Query(Criteria.where("email").is(userEmail).and("dailyAiCalls").lt(maxCalls));
             Update update = new Update()
                     .inc("dailyAiCalls", 1)

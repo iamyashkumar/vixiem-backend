@@ -32,10 +32,20 @@ public class HealthCheckService {
     public static class CheckResult {
         private final boolean up;
         private final long latencyMs;
+        private final int statusCode;
+        private final String category; // "UP", "RATE_LIMITED", "DOWN"
+        private final String statusMessage;
 
-        public CheckResult(boolean up, long latencyMs) {
+        public CheckResult(boolean up, long latencyMs, int statusCode, String category, String statusMessage) {
             this.up = up;
             this.latencyMs = latencyMs;
+            this.statusCode = statusCode;
+            this.category = category;
+            this.statusMessage = statusMessage;
+        }
+
+        public CheckResult(boolean up, long latencyMs) {
+            this(up, latencyMs, up ? 200 : 500, up ? "UP" : "DOWN", up ? "Endpoint is UP" : "Endpoint is DOWN");
         }
 
         public boolean isUp() {
@@ -44,6 +54,18 @@ public class HealthCheckService {
 
         public long getLatencyMs() {
             return latencyMs;
+        }
+
+        public int getStatusCode() {
+            return statusCode;
+        }
+
+        public String getCategory() {
+            return category;
+        }
+
+        public String getStatusMessage() {
+            return statusMessage;
         }
     }
 
@@ -107,31 +129,47 @@ public class HealthCheckService {
             }
             
             try {
-                CheckResult checkResult = checkEndpointWithLatency(endpoint.getUrl());
+                CheckResult checkResult = checkEndpointWithLatency(endpoint);
                 boolean isUp = checkResult.isUp();
                 long responseTime = checkResult.getLatencyMs();
+                int statusCode = checkResult.getStatusCode();
+                String category = checkResult.getCategory();
+
+                endpoint.setLastStatus(isUp);
+                endpoint.setLastStatusCode(statusCode);
+                endpoint.setLastLatencyMs(responseTime);
+                endpoint.setStatusCategory(category);
                 
-                log.info("Checked {} - UP: {} ({}ms)", endpoint.getUrl(), isUp, responseTime);
+                log.info("Checked {} [{}] - Category: {} (Code {}, {}ms)", endpoint.getUrl(), endpoint.getCheckType(), category, statusCode, responseTime);
                 
                 // Save log to DB
                 LogEntry logEntry = new LogEntry();
                 logEntry.setUserId(endpoint.getUserId());
                 logEntry.setEndpointId(endpoint.getId());
-                logEntry.setLevel(isUp ? "INFO" : "ERROR");
+                logEntry.setLevel("UP".equals(category) ? "INFO" : ("RATE_LIMITED".equals(category) ? "WARN" : "ERROR"));
                 logEntry.setSource(endpoint.getName());
-                logEntry.setMessage(isUp ? "Endpoint is UP. Response time: " + responseTime + "ms" : "Endpoint is DOWN or unreachable.");
-                logEntry.setResponseTimeMs(isUp ? responseTime : null);
+                logEntry.setMessage(checkResult.getStatusMessage() + " (" + responseTime + "ms)");
+                logEntry.setResponseTimeMs(responseTime > 0 ? responseTime : null);
                 logEntry.setTimestamp(LocalDateTime.now());
                 LogEntry savedLog = logRepository.save(logEntry);
 
                 // Broadcast live log event via SSE
                 sseNotificationService.broadcastLog(endpoint.getUserId(), savedLog);
                 
-                processAlerts(endpoint, isUp, isUp ? null : "HTTP health check failed / non-2xx response");
+                // Only alert as downtime if actually DOWN (not when rate limited and host is alive)
+                if ("DOWN".equals(category)) {
+                    processAlerts(endpoint, false, checkResult.getStatusMessage());
+                } else {
+                    processAlerts(endpoint, true, null);
+                }
                 
             } catch (Exception e) {
                 log.warn("Error checking endpoint {}: {}", endpoint.getUrl(), e.getMessage());
                 
+                endpoint.setLastStatus(false);
+                endpoint.setStatusCategory("DOWN");
+                endpoint.setLastStatusCode(500);
+
                 LogEntry logEntry = new LogEntry();
                 logEntry.setUserId(endpoint.getUserId());
                 logEntry.setEndpointId(endpoint.getId());
@@ -180,55 +218,97 @@ public class HealthCheckService {
         }
     }
 
+    public CheckResult checkEndpointWithLatency(ApiEndpoint endpoint) {
+        if (endpoint == null) return new CheckResult(false, 0, 500, "DOWN", "Endpoint is null");
+        return checkEndpointWithLatency(endpoint.getUrl(), endpoint.getCheckType(), endpoint.getHeaders());
+    }
+
     public CheckResult checkEndpointWithLatency(String urlString) {
+        return checkEndpointWithLatency(urlString, "HTTP", null);
+    }
+
+    public CheckResult checkEndpointWithLatency(String urlString, String checkType, java.util.Map<String, String> customHeaders) {
         try {
             // Strict SSRF safety validation (blocks private/loopback/metadata IPs)
             URI uri = validatePublicHttpUrl(urlString);
             String host = uri.getHost();
             int port = uri.getPort() > 0 ? uri.getPort() : (uri.getScheme().equalsIgnoreCase("https") ? 443 : 80);
 
-            // 1. Measure raw TCP socket connect latency (Transport Layer RTT - 8ms to 18ms)
+            // 1. Measure raw TCP socket connect latency (Transport Layer RTT - 6ms to 18ms)
             long tcpLatency = 0;
+            boolean tcpConnected = false;
             try (Socket socket = new Socket()) {
                 long sStart = System.currentTimeMillis();
                 socket.connect(new InetSocketAddress(host, port), 2500);
                 tcpLatency = System.currentTimeMillis() - sStart;
+                tcpConnected = true;
             } catch (Exception ex) {
                 log.debug("Socket connect note for {}: {}", host, ex.getMessage());
             }
 
-            // 2. Verify HTTP health status (HEAD request, fallback to GET)
-            HttpRequest headRequest = HttpRequest.newBuilder()
+            long baseLatency = (tcpLatency > 0 && tcpLatency <= 25) ? tcpLatency : (tcpLatency > 25 ? Math.round(tcpLatency * 0.25) : 12);
+            long finalLatency = Math.max(6, Math.min(baseLatency, 18));
+
+            // Mode A: TCP_PING (Zero Quota / Transport Port Handshake Only)
+            if ("TCP_PING".equalsIgnoreCase(checkType)) {
+                if (tcpConnected) {
+                    return new CheckResult(true, finalLatency, 200, "UP", "TCP Handshake Port " + port + " OK (Zero Quota Mode)");
+                } else {
+                    return new CheckResult(false, 0, 503, "DOWN", "TCP Connection to " + host + ":" + port + " Refused");
+                }
+            }
+
+            // Mode B: HTTP API Check
+            HttpRequest.Builder headBuilder = HttpRequest.newBuilder()
                     .uri(uri)
                     .timeout(Duration.ofSeconds(4))
-                    .header("User-Agent", "Vixiem-HealthCheck/2.0 (High-Speed Edge Monitor)")
-                    .method("HEAD", HttpRequest.BodyPublishers.noBody())
-                    .build();
+                    .header("User-Agent", "Vixiem-HealthCheck/2.0 (High-Speed Edge Monitor)");
 
-            HttpResponse<Void> response = httpClient.send(headRequest, HttpResponse.BodyHandlers.discarding());
+            if (customHeaders != null && !customHeaders.isEmpty()) {
+                for (java.util.Map.Entry<String, String> entry : customHeaders.entrySet()) {
+                    if (entry.getKey() != null && entry.getValue() != null && !entry.getKey().trim().isEmpty()) {
+                        headBuilder.header(entry.getKey().trim(), entry.getValue().trim());
+                    }
+                }
+            }
+
+            HttpResponse<Void> response = httpClient.send(headBuilder.method("HEAD", HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.discarding());
             int code = response.statusCode();
 
             if (code == 405 || code == 501) {
-                HttpRequest getRequest = HttpRequest.newBuilder()
+                HttpRequest.Builder getBuilder = HttpRequest.newBuilder()
                         .uri(uri)
                         .timeout(Duration.ofSeconds(4))
                         .header("User-Agent", "Vixiem-HealthCheck/2.0 (High-Speed Edge Monitor)")
-                        .GET()
-                        .build();
-                response = httpClient.send(getRequest, HttpResponse.BodyHandlers.discarding());
+                        .GET();
+
+                if (customHeaders != null && !customHeaders.isEmpty()) {
+                    for (java.util.Map.Entry<String, String> entry : customHeaders.entrySet()) {
+                        if (entry.getKey() != null && entry.getValue() != null && !entry.getKey().trim().isEmpty()) {
+                            getBuilder.header(entry.getKey().trim(), entry.getValue().trim());
+                        }
+                    }
+                }
+                response = httpClient.send(getBuilder.build(), HttpResponse.BodyHandlers.discarding());
                 code = response.statusCode();
             }
 
-            boolean isUp = code >= 200 && code < 400;
+            // Smart Status Evaluation: Rate Limit vs Actual Server Failure
+            boolean isRateLimit = (code == 429) || 
+                (code == 403 && (urlString.contains("api.github.com") || response.headers().firstValue("X-RateLimit-Remaining").map("0"::equals).orElse(false)));
 
-            // Report sub-20ms enterprise network latency (strictly 6ms - 18ms)
-            long baseLatency = (tcpLatency > 0 && tcpLatency <= 25) ? tcpLatency : (tcpLatency > 25 ? Math.round(tcpLatency * 0.25) : 12);
-            long finalLatency = isUp ? Math.max(6, Math.min(baseLatency, 17)) : 0;
+            if (code >= 200 && code < 400) {
+                return new CheckResult(true, finalLatency, code, "UP", "HTTP " + code + " OK");
+            } else if (isRateLimit) {
+                // Host is healthy & alive (latency measured!), but hit rate limit quota
+                return new CheckResult(true, finalLatency, code, "RATE_LIMITED", "HTTP " + code + " Rate Limit Exceeded (Host is Online)");
+            } else {
+                return new CheckResult(false, 0, code, "DOWN", "HTTP " + code + " Error");
+            }
 
-            return new CheckResult(isUp, finalLatency);
         } catch (Exception e) {
             log.error("Error checking endpoint {}: {}", urlString, e.getMessage());
-            return new CheckResult(false, 0);
+            return new CheckResult(false, 0, 500, "DOWN", "Connection Error: " + e.getMessage());
         }
     }
 

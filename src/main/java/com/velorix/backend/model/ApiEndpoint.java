@@ -21,6 +21,7 @@ public class ApiEndpoint {
     private String id;
 
     private String userId;
+    private String workspaceId;
 
     @NotBlank(message = "Endpoint name is required")
     @Size(max = 100, message = "Endpoint name must be 100 characters or fewer")
@@ -46,6 +47,15 @@ public class ApiEndpoint {
     private String discordWebhookUrl;
     private String alertEmail;
     private Boolean lastStatus; // true = UP, false = DOWN, null = UNKNOWN
+    private Integer lastStatusCode; // e.g. 200, 401, 403, 429, 500
+    private Long lastLatencyMs;
+    private String statusCategory; // "UP", "RATE_LIMITED", "DOWN"
+
+    @Builder.Default
+    private String checkType = "HTTP"; // "HTTP" or "TCP_PING"
+
+    private java.util.Map<String, String> headers; // Custom HTTP headers (Authorization, X-API-Key)
+
     private LocalDateTime statusChangedAt;
     private LocalDateTime lastAlertSentAt;
 

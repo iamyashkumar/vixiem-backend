@@ -19,6 +19,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import com.velorix.backend.model.User;
 import com.velorix.backend.security.CustomUserDetails;
 
+import com.velorix.backend.model.Workspace;
+import com.velorix.backend.repository.WorkspaceRepository;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +34,9 @@ public class ApiEndpointController {
 
     @Autowired
     private ApiEndpointRepository apiEndpointRepository;
+
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -83,11 +89,28 @@ public class ApiEndpointController {
     @GetMapping
     public ResponseEntity<List<ApiEndpoint>> getUserEndpoints(
             @RequestParam(required = false) String tag,
+            @RequestParam(required = false) String workspaceId,
             HttpServletRequest request) {
         try {
             List<String> userIds = getUserIdsFromRequest();
             List<ApiEndpoint> endpoints = apiEndpointRepository.findByUserIdIn(userIds);
             
+            if (workspaceId != null && !workspaceId.trim().isEmpty() && !"ALL".equalsIgnoreCase(workspaceId)) {
+                Optional<Workspace> wsOpt = workspaceRepository.findById(workspaceId.trim());
+                if (wsOpt.isEmpty()) {
+                    wsOpt = workspaceRepository.findByUserIdIn(userIds).stream()
+                            .filter(w -> workspaceId.trim().equalsIgnoreCase(w.getId()) 
+                                    || workspaceId.trim().equalsIgnoreCase(w.getName()) 
+                                    || workspaceId.trim().equalsIgnoreCase(w.getSlug()))
+                            .findFirst();
+                }
+                final String matchedWsId = wsOpt.map(Workspace::getId).orElse(workspaceId.trim());
+                final boolean isDefault = wsOpt.isPresent() && (Boolean.TRUE.equals(wsOpt.get().getIsDefault()) || wsOpt.get().isDefault());
+                endpoints = endpoints.stream()
+                        .filter(e -> matchedWsId.equals(e.getWorkspaceId()) || (isDefault && (e.getWorkspaceId() == null || e.getWorkspaceId().trim().isEmpty())))
+                        .toList();
+            }
+
             if (tag != null && !tag.trim().isEmpty()) {
                 endpoints = endpoints.stream()
                         .filter(e -> e.getTags() != null && e.getTags().contains(tag))
@@ -114,6 +137,18 @@ public class ApiEndpointController {
             endpoint.setUserId(userId);
             endpoint.setCreatedAt(LocalDateTime.now());
             
+            // Auto-assign to default workspace if not set
+            if (endpoint.getWorkspaceId() == null || endpoint.getWorkspaceId().trim().isEmpty()) {
+                List<Workspace> userWs = workspaceRepository.findByUserIdIn(List.of(userId));
+                if (!userWs.isEmpty()) {
+                    Workspace defaultWs = userWs.stream()
+                            .filter(w -> Boolean.TRUE.equals(w.getIsDefault()))
+                            .findFirst()
+                            .orElse(userWs.get(0));
+                    endpoint.setWorkspaceId(defaultWs.getId());
+                }
+            }
+            
             if (endpoint.getCheckIntervalSeconds() < 30) {
                 endpoint.setCheckIntervalSeconds(60);
             }
@@ -122,23 +157,24 @@ public class ApiEndpointController {
 
             // Instant initial ping check
             try {
-                HealthCheckService.CheckResult checkRes = healthCheckService.checkEndpointWithLatency(saved.getUrl());
+                HealthCheckService.CheckResult checkRes = healthCheckService.checkEndpointWithLatency(saved);
                 boolean isUp = checkRes.isUp();
                 long responseTime = checkRes.getLatencyMs();
 
                 saved.setLastStatus(isUp);
+                saved.setLastStatusCode(checkRes.getStatusCode());
+                saved.setStatusCategory(checkRes.getCategory());
+                saved.setLastLatencyMs(responseTime);
                 saved.setStatusChangedAt(LocalDateTime.now());
                 saved = apiEndpointRepository.save(saved);
 
                 LogEntry logEntry = new LogEntry();
                 logEntry.setUserId(userId);
                 logEntry.setEndpointId(saved.getId());
-                logEntry.setLevel(isUp ? "INFO" : "ERROR");
+                logEntry.setLevel("UP".equals(checkRes.getCategory()) ? "INFO" : ("RATE_LIMITED".equals(checkRes.getCategory()) ? "WARN" : "ERROR"));
                 logEntry.setSource(saved.getName());
-                logEntry.setMessage(isUp 
-                        ? "Endpoint is UP. Response time: " + responseTime + "ms" 
-                        : "HTTP Check Failed for " + saved.getUrl() + " (Returned status code error or 4xx/5xx failure)");
-                logEntry.setResponseTimeMs(isUp ? responseTime : null);
+                logEntry.setMessage(checkRes.getStatusMessage() + " (" + responseTime + "ms)");
+                logEntry.setResponseTimeMs(responseTime > 0 ? responseTime : null);
                 logEntry.setTimestamp(LocalDateTime.now());
                 logRepository.save(logEntry);
             } catch (Exception ex) {
@@ -186,6 +222,8 @@ public class ApiEndpointController {
             existing.setActive(updated.isActive());
             existing.setAlertsEnabled(updated.isAlertsEnabled());
             existing.setTags(updated.getTags());
+            existing.setCheckType(updated.getCheckType() != null ? updated.getCheckType() : "HTTP");
+            existing.setHeaders(updated.getHeaders());
             
             if (updated.getCheckIntervalSeconds() >= 30) {
                 existing.setCheckIntervalSeconds(updated.getCheckIntervalSeconds());
@@ -193,11 +231,11 @@ public class ApiEndpointController {
 
             // Run instant re-check
             try {
-                long startTime = System.currentTimeMillis();
-                boolean isUp = healthCheckService.checkEndpoint(existing.getUrl());
-                long responseTime = System.currentTimeMillis() - startTime;
-
-                existing.setLastStatus(isUp);
+                HealthCheckService.CheckResult checkRes = healthCheckService.checkEndpointWithLatency(existing);
+                existing.setLastStatus(checkRes.isUp());
+                existing.setLastStatusCode(checkRes.getStatusCode());
+                existing.setStatusCategory(checkRes.getCategory());
+                existing.setLastLatencyMs(checkRes.getLatencyMs());
                 existing.setStatusChangedAt(LocalDateTime.now());
             } catch (Exception ex) {
                 log.warn("Immediate health check failed on update: {}", ex.getMessage());

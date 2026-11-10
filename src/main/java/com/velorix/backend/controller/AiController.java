@@ -65,24 +65,43 @@ public class AiController {
             }
 
             User user = userOpt.get();
+            LocalDateTime now = LocalDateTime.now();
 
-            // Check if daily limit needs reset
-            if (user.getLastAiCallReset() == null ||
-                    user.getLastAiCallReset().isBefore(LocalDateTime.now().minusHours(24))) {
+            // Check if 24 hours have elapsed since the user's first AI call in this cycle
+            if (user.getLastAiCallReset() != null && user.getLastAiCallReset().isBefore(now.minusHours(24))) {
                 user.setDailyAiCalls(0);
-                user.setLastAiCallReset(LocalDateTime.now());
+                user.setLastAiCallReset(null); // Clear timer so next 24h countdown starts on next call
                 userRepository.save(user);
             }
 
+            int maxCalls = user.getMaxDailyAiCalls();
+            if (maxCalls <= 0 || maxCalls == 10 || maxCalls == 50) {
+                maxCalls = AiQuotaService.DEFAULT_MAX_AI_CALLS;
+                user.setMaxDailyAiCalls(maxCalls);
+                userRepository.save(user);
+            }
+
+            int used = user.getDailyAiCalls();
+            int remaining = Math.max(0, maxCalls - used);
+
             Map<String, Object> response = new HashMap<>();
-            int maxCalls = user.getMaxDailyAiCalls() > 0 ? user.getMaxDailyAiCalls() : 50;
-            response.put("dailyCallsUsed", user.getDailyAiCalls());
-            response.put("used", user.getDailyAiCalls()); // UI expects 'used'
+            response.put("dailyCallsUsed", used);
+            response.put("used", used); // UI expects 'used'
             response.put("limit", maxCalls); // UI expects 'limit'
             response.put("dailyCallsLimit", maxCalls);
-            response.put("remainingCalls", maxCalls - user.getDailyAiCalls());
-            response.put("subscriptionPlan", user.getSubscriptionPlan());
+            response.put("remainingCalls", remaining);
+            response.put("subscriptionPlan", user.getSubscriptionPlan() != null ? user.getSubscriptionPlan() : "FREE");
             response.put("totalCallsUsed", user.getTotalAiCallsUsed());
+
+            if (user.getLastAiCallReset() != null && used > 0) {
+                LocalDateTime resetTime = user.getLastAiCallReset().plusHours(24);
+                long secondsRemaining = Math.max(0, java.time.Duration.between(now, resetTime).getSeconds());
+                response.put("resetAt", resetTime.toString());
+                response.put("resetInSeconds", secondsRemaining);
+            } else {
+                response.put("resetAt", null);
+                response.put("resetInSeconds", 0);
+            }
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -102,12 +121,12 @@ public class AiController {
             return ResponseEntity.status(401).build();
         }
 
-        // Enforce quota atomically
+        // Enforce quota atomically (15 calls per rolling 24h window starting from first call)
         boolean quotaReserved = aiQuotaService.reserveQuota(userId);
         if (!quotaReserved) {
-            log.warn("User {} reached daily AI call limit", userId);
+            log.warn("User {} reached 24h AI call limit or burst cooldown", userId);
             return ResponseEntity.status(429).body(Map.of(
-                    "error", "Daily AI call limit reached. Try tomorrow or upgrade your plan.",
+                    "error", "Daily quota of 15 AI analyses reached or cooldown active. Quota refreshes 24 hours after your first analysis.",
                     "code", "QUOTA_EXCEEDED"
             ));
         }
@@ -117,9 +136,10 @@ public class AiController {
 
         Map<String, Object> analysis = aiDebugService.analyzeErrors(userId, endpointId, errors);
 
-        // Fetch user to get remaining calls (or could just return without it, but let's include it)
+        // Fetch user to get remaining calls
         Optional<User> userOpt = userRepository.findByEmail(userId);
-        int remaining = userOpt.map(u -> (u.getMaxDailyAiCalls() > 0 ? u.getMaxDailyAiCalls() : 50) - u.getDailyAiCalls()).orElse(0);
+        int maxCalls = userOpt.map(u -> (u.getMaxDailyAiCalls() > 0 && u.getMaxDailyAiCalls() != 10 && u.getMaxDailyAiCalls() != 50 ? u.getMaxDailyAiCalls() : AiQuotaService.DEFAULT_MAX_AI_CALLS)).orElse(AiQuotaService.DEFAULT_MAX_AI_CALLS);
+        int remaining = userOpt.map(u -> Math.max(0, maxCalls - u.getDailyAiCalls())).orElse(0);
 
         Map<String, Object> response = new HashMap<>();
         response.put("analysis", analysis);

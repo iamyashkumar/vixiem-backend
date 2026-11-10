@@ -55,14 +55,17 @@ public class User {
     private java.util.Date lastPasswordResetDate;
 
     @Builder.Default
-    private int maxDailyAiCalls = 10; // Free tier limit
+    private int maxDailyAiCalls = 15; // Free tier limit: 15 calls per 24 hours rolling
 
     private LocalDateTime lastAiCallReset;
 
     @Builder.Default
     private long totalAiCallsUsed = 0;
 
-    // ✅ SUBSCRIPTION DETAILS
+    // ✅ SUBSCRIPTION & WORKSPACE LIMITS
+    @Builder.Default
+    private int totalWorkspacesCreated = 1;
+
     @Builder.Default
     private String subscriptionPlan = "FREE"; // FREE, PRO, ENTERPRISE
 

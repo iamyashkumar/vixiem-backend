@@ -70,10 +70,10 @@ public class AnalyticsController {
     }
 
     @GetMapping("/summary")
-    public ResponseEntity<?> getSummary() {
+    public ResponseEntity<?> getSummary(@RequestParam(required = false) String workspaceId) {
         try {
             List<String> userIds = getUserIdsFromRequest();
-            Map<String, Object> summary = analyticsService.getSummary(userIds);
+            Map<String, Object> summary = analyticsService.getSummary(userIds, workspaceId);
             return ResponseEntity.ok(summary);
         } catch (Exception e) {
             log.error("Error fetching analytics summary: {}", e.getMessage());

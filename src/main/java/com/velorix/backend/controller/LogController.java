@@ -1,5 +1,6 @@
 package com.velorix.backend.controller;
 
+import com.velorix.backend.model.ApiEndpoint;
 import com.velorix.backend.model.LogEntry;
 import com.velorix.backend.repository.LogRepository;
 import com.velorix.backend.security.JwtUtil;
@@ -62,13 +63,47 @@ public class LogController {
     public ResponseEntity<?> getLogs(
             @RequestParam(required = false) String level,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String endpointId,
+            @RequestParam(required = false) String workspaceId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         List<String> userIds = getUserIdsFromRequest();
 
-        // Build query criteria
         Criteria criteria = Criteria.where("userId").in(userIds);
+
+        // Workspace / Endpoint Scoping
+        if (workspaceId != null && !workspaceId.trim().isEmpty() && !"ALL".equalsIgnoreCase(workspaceId.trim())) {
+            Query epQuery = new Query(Criteria.where("userId").in(userIds).and("workspaceId").is(workspaceId.trim()));
+            List<ApiEndpoint> endpoints = mongoTemplate.find(epQuery, ApiEndpoint.class);
+            List<String> wsEndpointIds = endpoints.stream().map(ApiEndpoint::getId).toList();
+            if (wsEndpointIds.isEmpty()) {
+                return ResponseEntity.ok(Map.of(
+                        "content", List.of(),
+                        "totalPages", 0,
+                        "totalElements", 0,
+                        "page", page,
+                        "size", size
+                ));
+            }
+            if (endpointId != null && !endpointId.trim().isEmpty()) {
+                if (!wsEndpointIds.contains(endpointId.trim())) {
+                    return ResponseEntity.ok(Map.of(
+                            "content", List.of(),
+                            "totalPages", 0,
+                            "totalElements", 0,
+                            "page", page,
+                            "size", size
+                    ));
+                }
+                criteria = criteria.and("endpointId").is(endpointId.trim());
+            } else {
+                criteria = criteria.and("endpointId").in(wsEndpointIds);
+            }
+        } else if (endpointId != null && !endpointId.trim().isEmpty()) {
+            criteria = criteria.and("endpointId").is(endpointId.trim());
+        }
+
         if (level != null && !level.trim().isEmpty()) {
             criteria = criteria.and("level").is(level.trim());
         }
@@ -85,9 +120,9 @@ public class LogController {
 
         Query query = new Query(criteria);
         long total = mongoTemplate.count(query, LogEntry.class);
-        
-        log.debug("User IDs: {}, Level: {}, Keyword: {}", userIds, level, keyword);
-        log.debug("Total logs found in DB for this user: {}", total);
+
+        log.debug("User IDs: {}, Level: {}, Keyword: {}, WorkspaceId: {}, EndpointId: {}", userIds, level, keyword, workspaceId, endpointId);
+        log.debug("Total logs found in DB for this query: {}", total);
 
         query.with(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp")));
         List<LogEntry> logs = mongoTemplate.find(query, LogEntry.class);
